@@ -1,0 +1,210 @@
+{
+  "benchmarkTimestamp": "2026-09-21T12:53:17.075Z",
+  "environment": {
+    "nodeVersion": "v24.14.0",
+    "platform": "win32",
+    "arch": "x64",
+    "processUptimeSeconds": 1,
+    "heapMemoryMB": 20,
+    "rssMemoryMB": 79
+  },
+  "dockerStatus": {
+    "available": false,
+    "version": null,
+    "note": "Docker resource measurement not executed because Docker was unavailable."
+  },
+  "endpointLatencies": [
+    {
+      "endpoint": "/actuator/health",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.27,
+      "avg": 1.501,
+      "p50": 0.668,
+      "p95": 3.855,
+      "max": 31.428
+    },
+    {
+      "endpoint": "/api/health",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.237,
+      "avg": 0.372,
+      "p50": 0.325,
+      "p95": 0.702,
+      "max": 1.128
+    },
+    {
+      "endpoint": "/api/metrics",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.229,
+      "avg": 0.468,
+      "p50": 0.393,
+      "p95": 0.853,
+      "max": 1.245
+    },
+    {
+      "endpoint": "/api/tournaments",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.2,
+      "avg": 0.694,
+      "p50": 0.296,
+      "p95": 2.078,
+      "max": 5.245
+    },
+    {
+      "endpoint": "/api/teams",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.197,
+      "avg": 0.314,
+      "p50": 0.273,
+      "p95": 0.45,
+      "max": 1.394
+    },
+    {
+      "endpoint": "/api/fixtures",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.173,
+      "avg": 0.417,
+      "p50": 0.375,
+      "p95": 0.926,
+      "max": 1.175
+    },
+    {
+      "endpoint": "/api/standings/tour-1",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.173,
+      "avg": 0.496,
+      "p50": 0.251,
+      "p95": 1.307,
+      "max": 3.996
+    },
+    {
+      "endpoint": "/api/analytics/players",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.165,
+      "avg": 0.24,
+      "p50": 0.219,
+      "p95": 0.366,
+      "max": 0.614
+    },
+    {
+      "endpoint": "/api/workload",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.174,
+      "avg": 0.335,
+      "p50": 0.236,
+      "p95": 0.578,
+      "max": 2.169
+    },
+    {
+      "endpoint": "/api/injury-flags",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.165,
+      "avg": 0.268,
+      "p50": 0.223,
+      "p95": 0.6,
+      "max": 0.625
+    },
+    {
+      "endpoint": "/api/audit-logs",
+      "requestCount": 50,
+      "successfulRequests": 50,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "min": 0.198,
+      "avg": 0.595,
+      "p50": 0.357,
+      "p95": 1.685,
+      "max": 5.643
+    }
+  ],
+  "concurrencyScenarios": [
+    {
+      "scenario": "Scenario A — Light Load",
+      "concurrencyLevel": 10,
+      "totalRequests": 100,
+      "successfulRequests": 100,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "throughputRps": 2824.6,
+      "totalExecutionTimeMs": 35.4,
+      "min": 1.732,
+      "avg": 3.44,
+      "p50": 2.38,
+      "p95": 7.111,
+      "max": 8.901
+    },
+    {
+      "scenario": "Scenario B — Moderate Load",
+      "concurrencyLevel": 25,
+      "totalRequests": 250,
+      "successfulRequests": 250,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "throughputRps": 4023.3,
+      "totalExecutionTimeMs": 62.14,
+      "min": 1.669,
+      "avg": 5.987,
+      "p50": 5.822,
+      "p95": 10.853,
+      "max": 11.937
+    },
+    {
+      "scenario": "Scenario C — Higher Load",
+      "concurrencyLevel": 50,
+      "totalRequests": 500,
+      "successfulRequests": 500,
+      "failedRequests": 0,
+      "errorRatePct": 0,
+      "throughputRps": 3682.4,
+      "totalExecutionTimeMs": 135.78,
+      "min": 3.097,
+      "avg": 13.087,
+      "p50": 10.883,
+      "p95": 24.53,
+      "max": 31.631
+    }
+  ],
+  "scoringConcurrencyExperiment": {
+    "matchId": "match-qf-1",
+    "startingVersion": 1,
+    "expectedVersionSupplied": 1,
+    "totalConcurrentUpdateAttempts": 20,
+    "successfulUpdates": 1,
+    "http409ConflictsDetected": 19,
+    "otherErrors": 0,
+    "lostUpdatesCount": 0,
+    "finalMatchVersion": 2,
+    "finalScore": "1 - 0",
+    "concurrencyIntegrityConfirmed": true
+  }
+}

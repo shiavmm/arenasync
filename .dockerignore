@@ -1,0 +1,38 @@
+# ==============================================================================
+# Docker Ignore Rules for ArenaSync (BIT-57)
+# ==============================================================================
+
+# Dependencies & Package Managers
+node_modules/
+.pnpm-store/
+.npm/
+
+# Version Control
+.git/
+.gitignore
+.github/
+
+# Environment Variables & Sensitive Credentials
+.env*
+!.env.example
+*.pem
+*.key
+*.crt
+id_rsa*
+
+# Build, Test & Temporary Artifacts
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Local IDE & Editor Metadata
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.system_generated/
+*.tmp
+*.swp
