@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  /* Invert Slate Palette for Light Mode */
+  --color-slate-950: #f8fafc; /* was darkest, now lightest */
+  --color-slate-900: #ffffff;
+  --color-slate-800: #e2e8f0;
+  --color-slate-700: #cbd5e1;
+  --color-slate-600: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-300: #334155;
+  --color-slate-200: #1e293b;
+  --color-slate-100: #0f172a;
+  
+  /* Invert core text colors */
+  --color-white: #0f172a;
+  --color-black: #ffffff;
+
+  --color-dark-surface: #f8fafc;
+  --color-panel-bg: #ffffff;
+  
+  --animate-marquee: marquee 30s linear infinite;
+  
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-100%); }
+  }
+}
+
+body {
+  background-color: var(--color-dark-surface);
+  color: #0f172a;
+}
+
+/* Light Mode SaaS panel style */
+@utility yinz-panel {
+  background-color: var(--color-panel-bg);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+/* Accent texts for light mode */
+@utility text-glow-cyan {
+  color: #0284c7; /* Tailwind sky-600 */
+}
+
+@utility text-glow-red {
+  color: #e11d48; /* Tailwind rose-600 */
+}
+
+/* Clean, crisp border for active elements */
+@utility border-glow {
+  border-color: rgba(14, 165, 233, 0.4);
+  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.2);
+}
+

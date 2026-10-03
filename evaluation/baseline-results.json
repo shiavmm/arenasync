@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-09-21T12:43:41.258Z",
+  "environment": {
+    "nodeVersion": "v24.14.0",
+    "platform": "win32",
+    "architecture": "x64"
+  },
+  "metrics": [
+    {
+      "id": "METRIC_1_FIXTURES",
+      "name": "Fixture Generation & Bracket Topology Correctness",
+      "description": "8-team single elimination knockout bracket structure and deterministic progression linking",
+      "baseline": {
+        "totalMatchesGenerated": 4,
+        "bracketCompleteness": "4/7 matches (Initial Round Only)",
+        "progressionLinksValid": 0,
+        "topologyCorrectnessPct": 0
+      },
+      "arenaSync": {
+        "totalMatchesGenerated": 7,
+        "bracketCompleteness": "7/7 matches (4 QF, 2 SF, 1 Final)",
+        "progressionLinksValid": 6,
+        "topologyCorrectnessPct": 100
+      },
+      "outcome": "ArenaSync produces 100% deterministic, fully linked 7-match bracket vs baseline incomplete/manual linking."
+    },
+    {
+      "id": "METRIC_2_SCORE_CONSISTENCY",
+      "name": "Score Consistency & Validation Enforcement",
+      "description": "Input sanitization, negative value guards, and lifecycle locking on completed matches",
+      "baseline": {
+        "operationsTested": 4,
+        "invalidOperationsAllowed": 2,
+        "validationIntegrityPct": 50,
+        "finalStateSafe": false
+      },
+      "arenaSync": {
+        "operationsTested": 4,
+        "invalidOperationsAllowed": 0,
+        "invalidOperationsRejected": 2,
+        "validationIntegrityPct": 100,
+        "finalStateSafe": true
+      },
+      "outcome": "ArenaSync blocks 100% of illegal/corrupted score updates, preventing negative scores and post-completion tampering."
+    },
+    {
+      "id": "METRIC_3_CONCURRENCY",
+      "name": "Concurrent Update Collision Handling (Optimistic Locking)",
+      "description": "50 competing simultaneous score updates from separate officials evaluated for race conditions and lost updates",
+      "baseline": {
+        "totalConcurrentRequests": 50,
+        "conflictsDetectedAndRejected409": 0,
+        "lostUpdatesCount": 25,
+        "concurrencySafetyRatePct": 0
+      },
+      "arenaSync": {
+        "totalConcurrentRequests": 50,
+        "conflictsDetectedAndRejected409": 25,
+        "successfulUpdates": 25,
+        "lostUpdatesCount": 0,
+        "concurrencySafetyRatePct": 100
+      },
+      "outcome": "ArenaSync intercepted 100% of stale concurrent edits (25/25 HTTP 409 Conflict) with 0 lost updates vs baseline blind overwrite."
+    },
+    {
+      "id": "METRIC_4_AUDITABILITY",
+      "name": "Immutable Audit Logging & Governance Trail",
+      "description": "Capturing actor identity, role, timestamp, action type, and state diffs for operational transparency",
+      "baseline": {
+        "totalEventsProcessed": 8,
+        "structuredAuditLogsGenerated": 0,
+        "actorAttributionRatePct": 0,
+        "immutableTraceability": false
+      },
+      "arenaSync": {
+        "totalEventsProcessed": 8,
+        "structuredAuditLogsGenerated": 8,
+        "actorAttributionRatePct": 100,
+        "immutableTraceability": true,
+        "sampleLogEntry": {
+          "id": "log-1789994621260-s6z6w",
+          "timestamp": "2026-09-21T12:43:41.260Z",
+          "userId": "SYSTEM",
+          "userRole": "SYSTEM",
+          "action": "WORKLOAD_ALERT",
+          "entityId": "PLAYER_101",
+          "stateDiff": "High ACWR flag (1.65)"
+        }
+      },
+      "outcome": "ArenaSync automatically recorded 100% (8/8) structured audit trail entries with actor attribution."
+    },
+    {
+      "id": "METRIC_5_ANALYTICS",
+      "name": "Workload Analytics (ACWR) & Injury-Risk Flags",
+      "description": "Automated calculation of Acute:Chronic Workload Ratio and multi-factor injury risk flagging based on Gabbett training principles",
+      "baseline": {
+        "playersEvaluated": 8,
+        "automatedAcwrCalculations": 0,
+        "automatedInjuryAlertsTriggered": 0,
+        "realTimeRiskVisibility": "None (Manual Retrospective Spreadsheets Only)"
+      },
+      "arenaSync": {
+        "playersEvaluated": 8,
+        "automatedAcwrCalculations": 8,
+        "highRiskAlerts": 3,
+        "moderateRiskAlerts": 2,
+        "normalWorkloadCount": 3,
+        "realTimeRiskVisibility": "100% Real-Time Automated Risk Stratification"
+      },
+      "outcome": "ArenaSync evaluated 8/8 players, automatically flagging 3 HIGH-risk and 3 MODERATE-risk athlete fatigue alerts."
+    },
+    {
+      "id": "METRIC_6_TELEMETRY",
+      "name": "Operational Health & Observability Telemetry",
+      "description": "Continuous runtime health status, actuator endpoint, and system observability metrics",
+      "baseline": {
+        "healthEndpointAvailable": false,
+        "metricsEndpointAvailable": false,
+        "containerHealthcheckSupported": false,
+        "telemetryLatencyMs": "N/A"
+      },
+      "arenaSync": {
+        "healthEndpointAvailable": true,
+        "actuatorEndpoint": "/actuator/health",
+        "apiHealthEndpoint": "/api/health",
+        "metricsEndpoint": "/api/metrics",
+        "containerHealthcheckSupported": true,
+        "healthResponseStatus": "UP",
+        "databaseStatus": "ONLINE",
+        "uptimeTrackingSupported": true
+      },
+      "outcome": "ArenaSync provides live actuator health endpoints and telemetry vs baseline lack of operational monitoring."
+    }
+  ]
+}

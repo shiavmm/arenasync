@@ -1,0 +1,121 @@
+name: ArenaSync CI/CD Pipeline (BIT-57)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-and-quality:
+    name: Security & Dependency Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (LTS 20.x)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Install Dependencies
+        run: |
+          npm ci || npm install --no-audit
+
+      - name: Execute Automated Security & Secret Audit
+        run: |
+          npm run security:check
+
+  test-suite:
+    name: Automated Test Suite & Coverage (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    needs: [security-and-quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (${{ matrix.node-version }})
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Install Dependencies
+        run: |
+          npm ci || npm install --no-audit
+
+      - name: Run Complete Automated Test Suite (10 Suites)
+        run: |
+          npm test
+
+      - name: Run Test Coverage & Assert Integrity
+        run: |
+          npm run test:coverage
+
+  performance-and-baseline-evaluation:
+    name: Performance, Latency & Baseline Evaluation (BIT-57)
+    runs-on: ubuntu-latest
+    needs: [test-suite]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (LTS 20.x)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: package.json
+
+      - name: Install Dependencies
+        run: |
+          npm ci || npm install --no-audit
+
+      - name: Run Baseline Comparison Evaluation
+        run: |
+          npm run evaluate:baseline
+
+      - name: Run Load, Latency & Concurrency Benchmark
+        run: |
+          npm run evaluate:performance
+
+  docker-verification:
+    name: Containerized Deployment Verification (BIT-57)
+    runs-on: ubuntu-latest
+    needs: [performance-and-baseline-evaluation]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Production Docker Image
+        run: |
+          docker build -t arenasync:test .
+
+      - name: Start Container and Verify Health & Endpoints
+        run: |
+          docker run -d --name arenasync-container -p 3000:3000 -e NODE_ENV=production arenasync:test
+          sleep 5
+          docker ps --filter "name=arenasync-container"
+          curl --fail http://localhost:3000/actuator/health || exit 1
+          curl --fail http://localhost:3000/api/health || exit 1
+          docker stop arenasync-container
+          docker rm arenasync-container

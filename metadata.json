@@ -1,0 +1,7 @@
+{
+  "name": "ArenaSync",
+  "description": "ArenaSync - Smart Sports Operations Platform with Live Scoring, Workload Analytics and Injury Flags (BIT-57 capstone).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
