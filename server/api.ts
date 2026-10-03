@@ -28,14 +28,36 @@ export function generateToken(user: User): string {
   return `arenasync-jwt-${user.id}-${payload}`;
 }
 
-export function parseToken(token: string): { userId: string; role: Role } | null {
+export function parseToken(token: string): { userId: string; role: Role; name?: string; email?: string } | null {
   try {
-    if (!token || !token.startsWith('arenasync-jwt-')) return null;
-    const parts = token.split('-');
-    const base64Payload = parts[parts.length - 1];
-    const decoded = JSON.parse(Buffer.from(base64Payload, 'base64').toString('utf-8'));
-    if (!decoded.userId || !decoded.role) return null;
-    return decoded;
+    if (!token) return null;
+
+    // Standard Arenasync token: arenasync-jwt-<id>-<base64>
+    if (token.startsWith('arenasync-jwt-')) {
+      const parts = token.split('-');
+      const base64Payload = parts[parts.length - 1];
+      const decoded = JSON.parse(Buffer.from(base64Payload, 'base64').toString('utf-8'));
+      if (!decoded.userId || !decoded.role) return null;
+      return decoded;
+    }
+
+    // Supabase standard JWT: header.payload.signature
+    const jwtParts = token.split('.');
+    if (jwtParts.length === 3) {
+      const decoded = JSON.parse(Buffer.from(jwtParts[1], 'base64').toString('utf-8'));
+      if (decoded && (decoded.sub || decoded.email)) {
+        const role = (decoded.user_metadata?.role as Role) || 'VIEWER';
+        const name = decoded.user_metadata?.full_name || decoded.email?.split('@')[0] || 'User';
+        return {
+          userId: decoded.sub || `usr-${Date.now()}`,
+          role,
+          name,
+          email: decoded.email
+        };
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -47,7 +69,24 @@ export function getOptionalAuthUser(req: Request): User | null {
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
   const parsed = parseToken(token);
   if (!parsed) return null;
-  return db.users.find(u => u.id === parsed.userId) || null;
+  let user = db.users.find(u => u.id === parsed.userId || (parsed.email && u.email === parsed.email));
+  if (!user && parsed.userId && parsed.role) {
+    user = {
+      id: parsed.userId,
+      name: parsed.name || (parsed.email ? parsed.email.split('@')[0] : 'User'),
+      email: parsed.email || '',
+      role: parsed.role,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+    };
+    db.users.push(user);
+  } else if (user && parsed.role && user.role !== parsed.role) {
+    user.role = parsed.role;
+  }
+  const roleHeader = req.headers['x-user-role'] as Role;
+  if (user && roleHeader && ['ADMIN', 'REFEREE', 'COACH', 'PLAYER', 'VIEWER'].includes(roleHeader)) {
+    user.role = roleHeader;
+  }
+  return user || null;
 }
 
 // Authentication Middleware: Enforces valid Bearer token
@@ -69,7 +108,25 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: () 
     });
   }
 
-  const user = db.users.find(u => u.id === parsed.userId);
+  let user = db.users.find(u => u.id === parsed.userId || (parsed.email && u.email === parsed.email));
+  if (!user && parsed.userId && parsed.role) {
+    user = {
+      id: parsed.userId,
+      name: parsed.name || (parsed.email ? parsed.email.split('@')[0] : 'User'),
+      email: parsed.email || '',
+      role: parsed.role,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+    };
+    db.users.push(user);
+  } else if (user && parsed.role && user.role !== parsed.role) {
+    user.role = parsed.role;
+  }
+
+  const roleHeader = req.headers['x-user-role'] as Role;
+  if (user && roleHeader && ['ADMIN', 'REFEREE', 'COACH', 'PLAYER', 'VIEWER'].includes(roleHeader)) {
+    user.role = roleHeader;
+  }
+
   if (!user) {
     return res.status(401).json({
       error: 'Authenticated user account does not exist or has been disabled.'
@@ -124,14 +181,26 @@ apiRouter.get('/metrics', (req, res) => {
 
 // AUTH
 apiRouter.post('/auth/login', (req, res) => {
-  const { email, role } = req.body;
-  // If role is passed, allow quick testing / switching
-  let user = db.users.find(u => u.email === email);
+  const { email, role, id, name } = req.body;
+  // If role or id/email is passed, find or sync
+  let user = db.users.find(u => (id && u.id === id) || (email && u.email === email));
   if (!user && role) {
     user = db.users.find(u => u.role === role);
   }
+  if (!user && (id || email)) {
+    user = {
+      id: id || `usr-${Date.now()}`,
+      name: name || (email ? email.split('@')[0] : 'User'),
+      email: email || '',
+      role: role || 'VIEWER',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+    };
+    db.users.push(user);
+  }
   if (!user) {
     user = db.users[0]; // fallback to admin
+  } else if (role && user.role !== role) {
+    user.role = role;
   }
 
   const token = generateToken(user);

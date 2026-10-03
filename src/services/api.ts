@@ -9,6 +9,7 @@ import {
   User,
   SystemMetrics
 } from '../types.js';
+import { supabase } from '../lib/supabase.js';
 
 const API_BASE = '/api';
 
@@ -42,8 +43,24 @@ export const sportsApi = {
       ...((options.headers as Record<string, string>) || {})
     };
 
-    if (currentToken) {
-      headers['Authorization'] = `Bearer ${currentToken}`;
+    let token = currentToken;
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) {
+        if (data.session.access_token) {
+          token = data.session.access_token;
+        }
+        const role = data.session.user?.user_metadata?.role;
+        if (role && !headers['x-user-role']) {
+          headers['x-user-role'] = role;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     return fetch(endpoint, {
@@ -53,11 +70,11 @@ export const sportsApi = {
   },
 
   // Auth
-  async login(email?: string, role?: string): Promise<{ success: boolean; user: User; token: string }> {
+  async login(email?: string, role?: string, id?: string, name?: string): Promise<{ success: boolean; user: User; token: string }> {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role })
+      body: JSON.stringify({ email, role, id, name })
     });
     const data = await res.json();
     if (data.token) {

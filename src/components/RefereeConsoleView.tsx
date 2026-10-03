@@ -40,6 +40,8 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refereeNotes, setRefereeNotes] = useState(currentMatch?.refereeNotes || '');
 
+  const canEdit = currentUser.role === 'ADMIN' || currentUser.role === 'REFEREE';
+
   // Event modal state
   const [selectedEventType, setSelectedEventType] = useState<'GOAL' | 'YELLOW_CARD' | 'RED_CARD' | 'FOUL' | 'SUBSTITUTION' | null>(null);
   const [eventTeamId, setEventTeamId] = useState<string>(currentMatch?.homeTeamId || '');
@@ -244,7 +246,7 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {currentMatch.status === 'SCHEDULED' && (
+            {canEdit && currentMatch.status === 'SCHEDULED' && (
               <button
                 onClick={handleStartMatch}
                 disabled={isSubmitting}
@@ -255,7 +257,7 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
               </button>
             )}
 
-            {currentMatch.status === 'LIVE' && (
+            {canEdit && currentMatch.status === 'LIVE' && (
               <button
                 onClick={handleCompleteMatch}
                 disabled={isSubmitting}
@@ -290,7 +292,7 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
             </div>
 
             {/* Touch Adjusters */}
-            {currentMatch.status === 'LIVE' && (
+            {canEdit && currentMatch.status === 'LIVE' && (
               <div className="flex items-center justify-center gap-3 pt-2">
                 <button
                   onClick={() => handleScoreAdjust(true, -1)}
@@ -332,7 +334,7 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
             </div>
 
             {/* Touch Adjusters */}
-            {currentMatch.status === 'LIVE' && (
+            {canEdit && currentMatch.status === 'LIVE' && (
               <div className="flex items-center justify-center gap-3 pt-2">
                 <button
                   onClick={() => handleScoreAdjust(false, -1)}
@@ -356,7 +358,7 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
         </div>
 
         {/* Quick Official Match Incident Triggers */}
-        {currentMatch.status === 'LIVE' && (
+        {canEdit && currentMatch.status === 'LIVE' && (
           <div className="mt-6 pt-6 border-t border-slate-800">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono mb-3">
               Quick Event Recording (Certified Log)
@@ -449,18 +451,20 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
         </div>
 
         {/* Official Referee Post-Match Report Notes */}
-        <div className="mt-6 pt-6 border-t border-slate-800 space-y-2">
-          <label className="block text-xs font-bold text-white uppercase tracking-wider font-mono">
-            Official Referee Match Certification Notes
-          </label>
-          <textarea
-            rows={2}
-            value={refereeNotes}
-            onChange={e => setRefereeNotes(e.target.value)}
-            placeholder="Document match conduct, discipline incidents, injury observations, or weather impacts..."
-            className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-500"
-          />
-        </div>
+        {canEdit && (
+          <div className="mt-6 pt-6 border-t border-slate-800 space-y-2">
+            <label className="block text-xs font-bold text-white uppercase tracking-wider font-mono">
+              Official Referee Match Certification Notes
+            </label>
+            <textarea
+              rows={2}
+              value={refereeNotes}
+              onChange={e => setRefereeNotes(e.target.value)}
+              placeholder="Document match conduct, discipline incidents, injury observations, or weather impacts..."
+              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-500"
+            />
+          </div>
+        )}
       </div>
 
       {/* Record Event Modal */}

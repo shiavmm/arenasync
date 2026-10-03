@@ -46,7 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Megaphone,
       category: 'MATCHES',
       badge: userRole === 'REFEREE' ? 'Assigned' : undefined,
-      badgeColor: 'bg-amber-500/20 text-amber-400'
+      badgeColor: 'bg-amber-500/20 text-amber-400',
+      allowedRoles: ['ADMIN', 'REFEREE'] as Role[]
     },
     {
       id: 'live-scoring',
@@ -88,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           const items = navItems.filter(item => {
             if (item.category !== category) return false;
             if (item.adminOnly && userRole !== 'ADMIN') return false;
+            if ((item as any).allowedRoles && !(item as any).allowedRoles.includes(userRole)) return false;
             return true;
           });
 

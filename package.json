@@ -16,10 +16,11 @@
     "audit": "node scripts/security-audit.js",
     "evaluate:baseline": "node scripts/evaluate-baseline.js",
     "evaluate:performance": "node scripts/evaluate-performance.js",
-    "seed:generate": "node scripts/generate-seed-data.js"
+    "seed:generate": "node scripts/generate-seed-data.js && node scripts/update-real-images.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@supabase/supabase-js": "^2.117.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/canvas-confetti": "^1.9.0",
     "@vitejs/plugin-react": "^6.1.1",

@@ -11,6 +11,8 @@ import {
   Role
 } from './types.js';
 import { sportsApi } from './services/api.js';
+import { supabase } from './lib/supabase.js';
+import { Auth } from './components/Auth.js';
 
 import { Header } from './components/Header.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -34,12 +36,67 @@ import { Menu, X, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User>({
-    id: 'u-1',
-    name: 'Dr. Sarah Jenkins',
-    email: 'admin@sports.org',
-    role: 'ADMIN',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+    id: 'guest',
+    name: 'Guest User',
+    email: '',
+    role: 'VIEWER'
   });
+
+  const [session, setSession] = useState<any>(null);
+
+  useEffect(() => {
+    const updateUserFromSession = async (currentSession: any) => {
+      setSession(currentSession);
+      if (currentSession?.user) {
+        const userRole = (currentSession.user.user_metadata?.role as Role) || 'VIEWER';
+        const userName = currentSession.user.user_metadata?.full_name || currentSession.user.email?.split('@')[0] || 'User';
+        const userEmail = currentSession.user.email || '';
+        const userId = currentSession.user.id;
+
+        setCurrentUser({
+          id: userId,
+          name: userName,
+          email: userEmail,
+          role: userRole,
+          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'
+        });
+
+        // Set token directly from session and synchronize with backend
+        if (currentSession.access_token) {
+          sportsApi.setToken(currentSession.access_token);
+        }
+
+        try {
+          const authRes = await sportsApi.login(userEmail, userRole, userId, userName);
+          if (authRes?.token) {
+            sportsApi.setToken(authRes.token);
+          }
+        } catch (e) {
+          console.warn('Backend session sync note:', e);
+        }
+      } else {
+        sportsApi.clearToken();
+        setCurrentUser({
+          id: 'guest',
+          name: 'Guest User',
+          email: '',
+          role: 'VIEWER'
+        });
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      updateUserFromSession(initialSession);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      updateUserFromSession(currentSession);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [previousView, setPreviousView] = useState<string>('dashboard');
@@ -136,7 +193,7 @@ export default function App() {
   // Initial fetch and 10-second polling for live updates
   useEffect(() => {
     const initAuthAndData = async () => {
-      if (!sportsApi.getToken()) {
+      if (!session && !sportsApi.getToken()) {
         try {
           const auth = await sportsApi.login(undefined, currentUser.role);
           setCurrentUser(auth.user);
@@ -183,6 +240,10 @@ export default function App() {
 
   const liveMatches = matches.filter(m => m.status === 'LIVE');
   const unreadAlerts = alerts.filter(a => !a.read);
+
+  if (!session) {
+    return <Auth onLogin={setSession} />;
+  }
 
   // If TV Mode is active or currentView is tv-display, render the dedicated fullscreen TV display
   if (isTvMode || currentView === 'tv-display') {

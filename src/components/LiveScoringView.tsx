@@ -314,12 +314,14 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => onNavigate('referee-console')}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
-            >
-              Open Whistle Console
-            </button>
+            {(currentUser.role === 'ADMIN' || currentUser.role === 'REFEREE') && (
+              <button
+                onClick={() => onNavigate('referee-console')}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+              >
+                Open Whistle Console
+              </button>
+            )}
 
             {isLive && (currentUser.role === 'ADMIN' || currentUser.role === 'REFEREE') && (
               <button
