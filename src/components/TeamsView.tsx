@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import {
   Users2,
   Plus,
+  Edit2,
+  Trash2,
+  AlertTriangle,
   Mail,
   MapPin,
   Trophy,
@@ -10,7 +13,8 @@ import {
   Search,
   ExternalLink,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  X
 } from 'lucide-react';
 import { Team, Player, Role } from '../types.js';
 import { sportsApi } from '../services/api.js';
@@ -35,10 +39,12 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState<Team | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Form State
+  // Form State for Add / Edit
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [coachName, setCoachName] = useState('');
@@ -53,6 +59,28 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
       t.coachName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const openAddModal = () => {
+    setName('');
+    setCode('');
+    setCoachName('');
+    setCoachEmail('');
+    setHomeVenue('Campus Sports Ground');
+    setPrimaryColor('#2563eb');
+    setErrorMsg('');
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (team: Team) => {
+    setEditingTeam(team);
+    setName(team.name);
+    setCode(team.code);
+    setCoachName(team.coachName || '');
+    setCoachEmail(team.coachEmail || '');
+    setHomeVenue(team.homeVenue || 'Campus Sports Ground');
+    setPrimaryColor(team.primaryColor || '#2563eb');
+    setErrorMsg('');
+  };
+
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !code.trim()) {
@@ -63,11 +91,11 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
     setIsSubmitting(true);
     try {
       await sportsApi.createTeam({
-        name,
+        name: name.trim(),
         code: code.trim().toUpperCase(),
-        coachName,
-        coachEmail,
-        homeVenue,
+        coachName: coachName.trim(),
+        coachEmail: coachEmail.trim(),
+        homeVenue: homeVenue.trim(),
         primaryColor
       });
       setShowAddModal(false);
@@ -83,8 +111,50 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
     }
   };
 
+  const handleUpdateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeam) return;
+    if (!name.trim() || !code.trim()) {
+      setErrorMsg('Team name and code are required');
+      return;
+    }
+    setErrorMsg('');
+    setIsSubmitting(true);
+    try {
+      await sportsApi.updateTeam(editingTeam.id, {
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        coachName: coachName.trim(),
+        coachEmail: coachEmail.trim(),
+        homeVenue: homeVenue.trim(),
+        primaryColor
+      });
+      setEditingTeam(null);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update team');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTeam = async () => {
+    if (!deletingTeam) return;
+    setErrorMsg('');
+    setIsSubmitting(true);
+    try {
+      await sportsApi.deleteTeam(deletingTeam.id);
+      setDeletingTeam(null);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to soft-delete team');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getTeamRoster = (teamId: string) => {
-    return players.filter(p => p.teamId === teamId);
+    return players.filter(p => p.teamId === teamId && p.status !== 'INACTIVE');
   };
 
   return (
@@ -115,7 +185,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
 
           {userRole === 'ADMIN' && (
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={openAddModal}
               className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-lg shadow-cyan-600/30 transition-all flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -135,7 +205,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
               className="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg hover:border-slate-700 transition-all flex flex-col justify-between"
             >
               <div>
-                {/* Crest + Code */}
+                {/* Crest + Code + Actions */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3">
                     <img
@@ -151,11 +221,34 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
                     </div>
                   </div>
 
-                  <span
-                    className="h-3 w-3 rounded-full border border-slate-700 shrink-0"
-                    style={{ backgroundColor: team.primaryColor }}
-                    title={`Team Color: ${team.primaryColor}`}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="h-3 w-3 rounded-full border border-slate-700 shrink-0"
+                      style={{ backgroundColor: team.primaryColor }}
+                      title={`Team Color: ${team.primaryColor}`}
+                    />
+                    {userRole === 'ADMIN' && (
+                      <div className="flex items-center gap-1 ml-1">
+                        <button
+                          onClick={() => openEditModal(team)}
+                          title="Edit Team"
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-cyan-600/30 hover:text-cyan-400 text-slate-400 transition-colors"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setErrorMsg('');
+                            setDeletingTeam(team);
+                          }}
+                          title="Delete Team"
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/30 hover:text-rose-400 text-slate-400 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Coach & Venue */}
@@ -196,7 +289,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
                 <div className="flex items-center justify-between text-[11px] mb-4">
                   <span className="text-slate-500 font-mono">Recent Form:</span>
                   <div className="flex items-center gap-1">
-                    {team.recentForm.slice(-4).map((f, i) => (
+                    {team.recentForm && team.recentForm.slice(-4).map((f, i) => (
                       <span
                         key={i}
                         className={`h-4 w-4 rounded text-[9px] font-bold flex items-center justify-center text-white font-mono ${
@@ -268,7 +361,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
                   {getTeamRoster(selectedTeam.id).length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-6 text-center text-slate-500">
-                        No players registered yet for this team.
+                        No active players registered yet for this team.
                       </td>
                     </tr>
                   ) : (
@@ -385,7 +478,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
                   <label className="block text-slate-300 font-medium mb-1">3-Letter Code *</label>
                   <input
                     type="text"
-                    maxLength={4}
+                    maxLength={6}
                     required
                     placeholder="SLU"
                     value={code}
@@ -457,6 +550,160 @@ export const TeamsView: React.FC<TeamsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Team Modal */}
+      {editingTeam && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white font-['Chakra_Petch'] flex items-center gap-2">
+                <Edit2 className="h-5 w-5 text-cyan-400" />
+                <span>Edit Team: {editingTeam.name}</span>
+              </h3>
+              <button onClick={() => setEditingTeam(null)} className="text-slate-400 hover:text-white text-sm">
+                ✕
+              </button>
+            </div>
+
+            {errorMsg && (
+              <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-300">
+                {errorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateTeam} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Team Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Code *</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white uppercase font-mono placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Primary Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={primaryColor}
+                      onChange={e => setPrimaryColor(e.target.value)}
+                      className="h-9 w-12 rounded-lg bg-transparent cursor-pointer border border-slate-700"
+                    />
+                    <span className="text-[11px] font-mono text-slate-400">{primaryColor}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Coach Name</label>
+                  <input
+                    type="text"
+                    value={coachName}
+                    onChange={e => setCoachName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Coach Email</label>
+                  <input
+                    type="email"
+                    value={coachEmail}
+                    onChange={e => setCoachEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Home Venue</label>
+                <input
+                  type="text"
+                  value={homeVenue}
+                  onChange={e => setHomeVenue(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingTeam(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg shadow-cyan-600/30 transition-all"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Team Confirmation Dialog */}
+      {deletingTeam && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-rose-800/60 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <AlertTriangle className="h-6 w-6 shrink-0" />
+              <h3 className="text-base font-bold text-white font-['Chakra_Petch']">
+                Confirm Soft-Delete Team
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Are you sure you want to deactivate <strong className="text-white">{deletingTeam.name} ({deletingTeam.code})</strong>?
+              This team will be marked as <span className="font-mono text-amber-400 font-bold">INACTIVE</span>. Past match records and audit logs will remain intact.
+            </p>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800 text-xs text-rose-200">
+                ⚠️ {errorMsg}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setDeletingTeam(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteTeam}
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg shadow-rose-600/30 transition-all flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>{isSubmitting ? 'Deleting...' : 'Confirm Soft Delete'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

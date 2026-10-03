@@ -42,10 +42,39 @@ export default function App() {
   });
 
   const [currentView, setCurrentView] = useState<string>('dashboard');
+  const [previousView, setPreviousView] = useState<string>('dashboard');
   const [isTvMode, setIsTvMode] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string>('m-1');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+
+  const handleNavigate = (view: string) => {
+    if (view === 'tv-display') {
+      if (currentView !== 'tv-display') {
+        setPreviousView(currentView);
+      }
+      setIsTvMode(true);
+      setCurrentView('tv-display');
+    } else {
+      setPreviousView(currentView);
+      setCurrentView(view);
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleOpenTvMode = () => {
+    if (currentView !== 'tv-display') {
+      setPreviousView(currentView);
+    }
+    setIsTvMode(true);
+    setCurrentView('tv-display');
+  };
+
+  const handleExitTvMode = () => {
+    setIsTvMode(false);
+    const target = (previousView && previousView !== 'tv-display') ? previousView : 'dashboard';
+    setCurrentView(target);
+  };
 
   // Core Data States
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -155,14 +184,14 @@ export default function App() {
   const liveMatches = matches.filter(m => m.status === 'LIVE');
   const unreadAlerts = alerts.filter(a => !a.read);
 
-  // If TV Mode is active, render the dedicated fullscreen TV display
-  if (isTvMode) {
+  // If TV Mode is active or currentView is tv-display, render the dedicated fullscreen TV display
+  if (isTvMode || currentView === 'tv-display') {
     return (
       <TvDisplayView
         matches={matches}
         selectedMatchId={selectedMatchId}
         onSelectMatch={setSelectedMatchId}
-        onExit={() => setIsTvMode(false)}
+        onExit={handleExitTvMode}
       />
     );
   }
@@ -189,20 +218,17 @@ export default function App() {
       <Header
         currentUser={currentUser}
         onSwitchRole={handleSwitchRole}
-        onOpenTvMode={() => setIsTvMode(true)}
+        onOpenTvMode={handleOpenTvMode}
         alerts={alerts}
         onMarkAlertRead={handleMarkAlertRead}
         onResetDemo={handleResetDemo}
         activeMatchesCount={liveMatches.length}
-        onNavigate={view => {
-          setCurrentView(view);
-          setIsMobileMenuOpen(false);
-        }}
+        onNavigate={handleNavigate}
       />
 
       {/* Live Marquee Ticker */}
       {liveMatches.length > 0 && (
-        <div className="bg-black/60 border-b border-t border-cyan-500/20 overflow-hidden py-2 shadow-lg backdrop-blur-md relative z-40">
+        <div className="bg-black/60 border-b border-t border-cyan-500/20 overflow-hidden py-2 shadow-lg backdrop-blur-md relative z-10">
           <div className="whitespace-nowrap animate-marquee flex items-center font-mono text-sm tracking-widest text-cyan-400">
             {/* Duplicate content to create seamless loop */}
             {[...Array(3)].map((_, i) => (
@@ -242,10 +268,7 @@ export default function App() {
         >
           <Sidebar
             currentView={currentView}
-            onNavigate={view => {
-              setCurrentView(view);
-              setIsMobileMenuOpen(false);
-            }}
+            onNavigate={handleNavigate}
             userRole={currentUser.role}
             unreadAlertsCount={unreadAlerts.length}
             liveMatchesCount={liveMatches.length}
@@ -264,7 +287,7 @@ export default function App() {
                 alerts={alerts}
                 workloads={workloads}
                 injuryFlags={injuryFlags}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
                 onSelectMatch={setSelectedMatchId}
               />
             )}
@@ -274,7 +297,7 @@ export default function App() {
                 tournaments={tournaments}
                 onRefresh={loadData}
                 userRole={currentUser.role}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
               />
             )}
 
@@ -284,7 +307,7 @@ export default function App() {
                 players={players}
                 onRefresh={loadData}
                 userRole={currentUser.role}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
                 onSelectPlayer={setSelectedPlayer}
               />
             )}
@@ -295,9 +318,10 @@ export default function App() {
                 teams={teams}
                 onRefresh={loadData}
                 userRole={currentUser.role}
+                currentUser={currentUser}
                 selectedPlayer={selectedPlayer}
                 onSelectPlayer={setSelectedPlayer}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
               />
             )}
 
@@ -315,7 +339,7 @@ export default function App() {
                 onRefresh={loadData}
                 userRole={currentUser.role}
                 onSelectMatch={setSelectedMatchId}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
               />
             )}
 
@@ -327,6 +351,7 @@ export default function App() {
                 onSelectMatch={setSelectedMatchId}
                 onRefresh={loadData}
                 currentUser={currentUser}
+                injuryFlags={injuryFlags}
               />
             )}
 
@@ -337,7 +362,16 @@ export default function App() {
                 onSelectMatch={setSelectedMatchId}
                 onRefresh={loadData}
                 currentUser={currentUser}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
+              />
+            )}
+
+            {currentView === 'tv-display' && (
+              <TvDisplayView
+                matches={matches}
+                selectedMatchId={selectedMatchId}
+                onSelectMatch={setSelectedMatchId}
+                onExit={handleExitTvMode}
               />
             )}
 
@@ -354,7 +388,7 @@ export default function App() {
                 players={players}
                 teams={teams}
                 onSelectPlayer={setSelectedPlayer}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
               />
             )}
 
@@ -363,7 +397,7 @@ export default function App() {
                 workloads={workloads}
                 players={players}
                 onSelectPlayer={setSelectedPlayer}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
               />
             )}
 
@@ -372,7 +406,10 @@ export default function App() {
                 injuryFlags={injuryFlags}
                 players={players}
                 onSelectPlayer={setSelectedPlayer}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
+                userRole={currentUser.role}
+                currentUser={currentUser}
+                onRefresh={loadData}
               />
             )}
 
@@ -381,7 +418,7 @@ export default function App() {
                 alerts={alerts}
                 onMarkAlertRead={handleMarkAlertRead}
                 onMarkAllRead={handleMarkAllAlertsRead}
-                onNavigate={setCurrentView}
+                onNavigate={handleNavigate}
               />
             )}
 

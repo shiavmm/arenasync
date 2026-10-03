@@ -13,7 +13,7 @@ import {
   Shield,
   ArrowRightLeft
 } from 'lucide-react';
-import { Match, Player, Role, User } from '../types.js';
+import { Match, Player, Role, User, InjuryRiskFlag } from '../types.js';
 import { sportsApi } from '../services/api.js';
 
 interface RefereeConsoleViewProps {
@@ -23,6 +23,7 @@ interface RefereeConsoleViewProps {
   onSelectMatch: (id: string) => void;
   onRefresh: () => void;
   currentUser: User;
+  injuryFlags?: InjuryRiskFlag[];
 }
 
 export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
@@ -31,7 +32,8 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
   selectedMatchId,
   onSelectMatch,
   onRefresh,
-  currentUser
+  currentUser,
+  injuryFlags = []
 }) => {
   const currentMatch = matches.find(m => m.id === selectedMatchId) || matches.find(m => m.status === 'LIVE') || matches[0];
 
@@ -53,9 +55,28 @@ export const RefereeConsoleView: React.FC<RefereeConsoleViewProps> = ({
     );
   }
 
-  // Get eligible roster players for home & away
-  const homePlayers = players.filter(p => p.teamId === currentMatch.homeTeamId && p.eligibilityStatus === 'VERIFIED');
-  const awayPlayers = players.filter(p => p.teamId === currentMatch.awayTeamId && p.eligibilityStatus === 'VERIFIED');
+  // Kickoff Clearance Gate: Filter out inactive, unverified, or blocked manual flags (HIGH or SUSPENSION)
+  const isPlayerBlockedByInjuryFlag = (playerId: string) => {
+    return injuryFlags.some(
+      f => f.playerId === playerId &&
+           f.source === 'MANUAL' &&
+           (f.status || 'ACTIVE') === 'ACTIVE' &&
+           (f.severity === 'HIGH' || f.category === 'SUSPENSION')
+    );
+  };
+
+  const homePlayers = players.filter(
+    p => p.teamId === currentMatch.homeTeamId &&
+         p.status !== 'INACTIVE' &&
+         p.eligibilityStatus === 'VERIFIED' &&
+         !isPlayerBlockedByInjuryFlag(p.id)
+  );
+  const awayPlayers = players.filter(
+    p => p.teamId === currentMatch.awayTeamId &&
+         p.status !== 'INACTIVE' &&
+         p.eligibilityStatus === 'VERIFIED' &&
+         !isPlayerBlockedByInjuryFlag(p.id)
+  );
   const activeTeamPlayers = eventTeamId === currentMatch.homeTeamId ? homePlayers : awayPlayers;
 
   const handleStartMatch = async () => {

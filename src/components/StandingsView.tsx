@@ -9,6 +9,7 @@ import {
   Info
 } from 'lucide-react';
 import { StandingRecord, Tournament } from '../types.js';
+import { sportsApi } from '../services/api.js';
 
 interface StandingsViewProps {
   standings: StandingRecord[];
@@ -17,11 +18,38 @@ interface StandingsViewProps {
 }
 
 export const StandingsView: React.FC<StandingsViewProps> = ({
-  standings,
+  standings: initialStandings,
   tournaments,
   onRefresh
 }) => {
   const [selectedTourId, setSelectedTourId] = useState(tournaments[0]?.id || 'tour-1');
+  const [currentStandings, setCurrentStandings] = useState<StandingRecord[]>(initialStandings);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    if (selectedTourId) {
+      sportsApi.getStandings(selectedTourId).then(data => {
+        if (isMounted && Array.isArray(data)) {
+          setCurrentStandings(data);
+        }
+      }).catch(err => console.error('Failed to load standings for tournament:', err));
+    }
+    return () => { isMounted = false; };
+  }, [selectedTourId, initialStandings]);
+
+  const handleRefresh = async () => {
+    if (selectedTourId) {
+      try {
+        const data = await sportsApi.getStandings(selectedTourId);
+        if (Array.isArray(data)) setCurrentStandings(data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    onRefresh();
+  };
+
+  const standings = currentStandings;
 
   return (
     <div className="space-y-6">
@@ -51,7 +79,7 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
           </select>
 
           <button
-            onClick={onRefresh}
+            onClick={handleRefresh}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
             title="Refresh Standings"
           >
@@ -108,9 +136,8 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
                   return (
                     <tr
                       key={row.teamId}
-                      className={`hover:bg-slate-800/40 transition-colors ${
-                        isTopSeed ? 'bg-cyan-950/10' : ''
-                      }`}
+                      className={`hover:bg-slate-800/40 transition-colors ${isTopSeed ? 'bg-cyan-950/10' : ''
+                        }`}
                     >
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center">
@@ -169,9 +196,8 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
                           {row.form.slice(-5).map((f, i) => (
                             <span
                               key={i}
-                              className={`h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center text-white font-mono ${
-                                f === 'W' ? 'bg-emerald-600' : f === 'D' ? 'bg-amber-600' : 'bg-rose-600'
-                              }`}
+                              className={`h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center text-white font-mono ${f === 'W' ? 'bg-emerald-600' : f === 'D' ? 'bg-amber-600' : 'bg-rose-600'
+                                }`}
                               title={f === 'W' ? 'Win' : f === 'D' ? 'Draw' : 'Loss'}
                             >
                               {f}

@@ -52,6 +52,7 @@ export interface Team {
   goalDifference: number;
   recentForm: ('W' | 'D' | 'L')[];
   status: 'ACTIVE' | 'PENDING' | 'INACTIVE';
+  deletedAt?: string;
 }
 
 export type DocumentType = 'ID_PROOF' | 'COLLEGE_ID' | 'MEDICAL_CERTIFICATE' | 'REGISTRATION_DOC';
@@ -86,6 +87,8 @@ export interface Player {
   photoUrl: string;
   eligibilityStatus: EligibilityStatus;
   documents: EligibilityDocument[];
+  status?: 'ACTIVE' | 'PENDING' | 'INACTIVE';
+  deletedAt?: string;
   // Stats
   matchesPlayed: number;
   minutesPlayed: number;
@@ -229,16 +232,35 @@ export interface PlayerWorkload {
 }
 
 export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH';
+export type FlagSource = 'ACWR_AUTO' | 'MANUAL';
+export type FlagCategory = 'INJURY' | 'ILLNESS' | 'SUSPENSION';
+export type FlagSeverity = 'LOW' | 'MODERATE' | 'HIGH';
+export type FlagStatus = 'ACTIVE' | 'RESOLVED' | 'VOIDED';
 
 export interface InjuryRiskFlag {
+  id: string;
   playerId: string;
   playerName: string;
   teamId: string;
   teamName: string;
-  riskLevel: RiskLevel;
+  source: FlagSource;
+  category: FlagCategory;
+  severity: FlagSeverity;
+  riskLevel?: RiskLevel;
+  notes?: string;
+  status: FlagStatus;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  voidedBy?: string;
+  voidedAt?: string;
+  voidReason?: string;
   reasons: string[];
   riskScore: number; // 0 - 100
-  triggers: {
+  triggers?: {
     label: string;
     value: string;
     threshold: string;

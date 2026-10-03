@@ -46,13 +46,47 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
 
   if (!currentMatch) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-8">
-        <p className="text-xl">No match selected for TV Broadcast.</p>
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-8 select-none">
+        <div className="h-16 w-16 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center mb-4">
+          <Tv className="h-8 w-8 text-cyan-400" />
+        </div>
+        <h2 className="text-2xl font-bold font-['Chakra_Petch'] mb-2">TV Broadcast Mode</h2>
+        <p className="text-slate-400 mb-6 text-sm">No scheduled or live matches currently available for broadcast.</p>
+        <button
+          onClick={onExit}
+          className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition-all flex items-center gap-2 border border-slate-700"
+        >
+          <X className="h-4 w-4 text-rose-400" />
+          <span>Exit TV Mode</span>
+        </button>
       </div>
     );
   }
 
-  const latestEvents = [...currentMatch.events].reverse().slice(0, 4);
+  const latestEvents = [...(currentMatch.events || [])].reverse().slice(0, 4);
+
+  const homeName = currentMatch.homeTeamName || (currentMatch as any).homeTeam?.name || 'Home Team';
+  const awayName = currentMatch.awayTeamName || (currentMatch as any).awayTeam?.name || 'Away Team';
+  const homeLogo = currentMatch.homeTeamLogo || (currentMatch as any).homeTeam?.logoUrl || 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=120&auto=format&fit=crop&q=80';
+  const awayLogo = currentMatch.awayTeamLogo || (currentMatch as any).awayTeam?.logoUrl || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=120&auto=format&fit=crop&q=80';
+
+  const getEventIcon = (type: string) => {
+    switch (type) {
+      case 'GOAL':
+      case 'POINT':
+        return '🏀';
+      case 'YELLOW_CARD':
+        return '🟨';
+      case 'RED_CARD':
+        return '🟥';
+      case 'FOUL':
+        return '⚠️';
+      case 'SUBSTITUTION':
+        return '🔄';
+      default:
+        return '⏱️';
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between overflow-hidden font-sans select-none">
@@ -141,8 +175,8 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
           <div className="md:col-span-3 flex flex-col items-center text-center space-y-4">
             <div className="relative">
               <img
-                src={currentMatch.homeTeamLogo}
-                alt={currentMatch.homeTeamName}
+                src={homeLogo}
+                alt={homeName}
                 className="h-28 w-28 lg:h-36 lg:w-36 rounded-3xl object-cover ring-4 ring-blue-500/50 shadow-2xl shadow-blue-500/30"
               />
               <span className="absolute -bottom-2 px-3 py-0.5 rounded-full bg-blue-600 text-[11px] font-bold font-mono uppercase tracking-wider text-white">
@@ -150,7 +184,7 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
               </span>
             </div>
             <h2 className="text-2xl lg:text-4xl font-extrabold text-white font-['Chakra_Petch'] tracking-tight">
-              {currentMatch.homeTeamName}
+              {homeName}
             </h2>
           </div>
 
@@ -170,8 +204,8 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
           <div className="md:col-span-3 flex flex-col items-center text-center space-y-4">
             <div className="relative">
               <img
-                src={currentMatch.awayTeamLogo}
-                alt={currentMatch.awayTeamName}
+                src={awayLogo}
+                alt={awayName}
                 className="h-28 w-28 lg:h-36 lg:w-36 rounded-3xl object-cover ring-4 ring-purple-500/50 shadow-2xl shadow-purple-500/30"
               />
               <span className="absolute -bottom-2 px-3 py-0.5 rounded-full bg-purple-600 text-[11px] font-bold font-mono uppercase tracking-wider text-white">
@@ -179,7 +213,7 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
               </span>
             </div>
             <h2 className="text-2xl lg:text-4xl font-extrabold text-white font-['Chakra_Petch'] tracking-tight">
-              {currentMatch.awayTeamName}
+              {awayName}
             </h2>
           </div>
         </div>
@@ -203,7 +237,7 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
                   className="px-3 py-1 rounded-xl bg-slate-950 border border-slate-800 text-xs flex items-center gap-2 shrink-0 font-medium"
                 >
                   <span className="font-mono font-bold text-cyan-400">{ev.minute}&apos;</span>
-                  <span>{ev.type === 'GOAL' ? '⚽' : ev.type === 'YELLOW_CARD' ? '🟨' : '🟥'}</span>
+                  <span>{getEventIcon(ev.type)}</span>
                   <span className="text-slate-200">{ev.detail}</span>
                 </div>
               ))

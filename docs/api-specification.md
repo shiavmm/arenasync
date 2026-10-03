@@ -223,9 +223,79 @@ This document provides the exhaustive specification for all REST API endpoints i
 * **Response (200 OK)**: `{ "workloads": [...], "highWorkloadCount": 3, "averageAcwr": "1.24" }`
 
 #### `GET /api/injury-flags`
-* **Purpose**: Retrieve active statistical fatigue and injury risk signals.
+* **Purpose**: Retrieve statistical ACWR and manual staff flags with clinical disclaimer. Defaults to `ACTIVE` flags.
 * **Auth**: Public.
-* **Response (200 OK)**: `{ "flags": [...], "summary": { "highCount": 3, "moderateCount": 2 } }`
+* **Query Params**: `status` (`ACTIVE` | `RESOLVED` | `VOIDED` | `ALL`), `playerId` (optional string).
+* **Response (200 OK)**:
+  ```json
+  {
+    "flags": [
+      {
+        "id": "flag-man-1789994580-x9a",
+        "playerId": "ply-1",
+        "playerName": "Julian Reyes",
+        "teamId": "team-1",
+        "teamName": "Apex Strikers",
+        "source": "MANUAL",
+        "category": "INJURY",
+        "severity": "HIGH",
+        "notes": "Hamstring strain grade 1",
+        "status": "ACTIVE",
+        "createdBy": "Elena Rostova",
+        "createdAt": "2026-10-03T10:00:00.000Z"
+      }
+    ],
+    "summary": { "highCount": 1, "moderateCount": 2, "lowCount": 1, "totalTracked": 4 },
+    "clinicalDisclaimer": "All flags and risk tiers are statistical workload & fatigue models or manual staff logs, NOT medical diagnoses."
+  }
+  ```
+
+#### `POST /api/players/:id/injury-flags`
+* **Purpose**: Create a new manual injury, illness, or suspension flag.
+* **Auth**: `ADMIN`, or `COACH` (for players on their own team).
+* **Request Body**:
+  ```json
+  {
+    "category": "INJURY", // "INJURY" | "ILLNESS" | "SUSPENSION"
+    "severity": "HIGH",   // "LOW" | "MODERATE" | "HIGH"
+    "notes": "Hamstring strain reported during practice." // max 500 chars
+  }
+  ```
+* **Response (201 Created)**: Created `InjuryRiskFlag` object.
+* **Errors**: `400 Bad Request` (invalid input), `401 Unauthorized` (no token), `403 Forbidden` (wrong role/team), `404 Not Found` (player).
+
+#### `PUT /api/injury-flags/:id`
+* **Purpose**: Edit category, severity, or notes of an `ACTIVE` manual flag.
+* **Auth**: `ADMIN`, or `COACH` (for players on their own team).
+* **Request Body**: `{ "category"?: "INJURY", "severity"?: "MODERATE", "notes"?: "Swelling reduced" }`
+* **Response (200 OK)**: Updated `InjuryRiskFlag` object.
+* **Errors**: `400 Bad Request` (invalid input), `403 Forbidden` (ACWR_AUTO flag or wrong team), `404 Not Found`, `409 Conflict` (if RESOLVED/VOIDED).
+
+#### `PUT /api/injury-flags/:id/resolve`
+* **Purpose**: Resolve an active manual flag upon athlete medical clearance.
+* **Auth**: `ADMIN`, or `COACH` (for players on their own team).
+* **Response (200 OK)**: Resolved `InjuryRiskFlag` object with `resolvedBy` and `resolvedAt`.
+* **Errors**: `403 Forbidden` (ACWR_AUTO flag or wrong team), `404 Not Found`, `409 Conflict` (already RESOLVED or VOIDED).
+
+#### `DELETE /api/injury-flags/:id`
+* **Purpose**: Soft-delete (VOID) a manual flag with mandatory reason. Preserves historical record.
+* **Auth**: `ADMIN`, or `COACH` who created it / manages that team.
+* **Request Body**: `{ "voidReason": "Flag entered in error; athlete fully cleared." }`
+* **Response (200 OK)**: Voided `InjuryRiskFlag` object with `voidedBy`, `voidedAt`, and `voidReason`.
+* **Errors**: `400 Bad Request` (missing `voidReason`), `403 Forbidden` (ACWR_AUTO flag or wrong team/creator), `404 Not Found`, `409 Conflict` (already VOIDED).
+
+#### `GET /api/players/:id/clearance`
+* **Purpose**: Evaluate athlete kickoff clearance gate against document verification and blocking injury/suspension flags.
+* **Auth**: Public.
+* **Response (200 OK)**:
+  ```json
+  {
+    "playerId": "ply-1",
+    "playerName": "Julian Reyes",
+    "cleared": false,
+    "reason": "Player Julian Reyes is blocked at kickoff clearance gate due to active HIGH severity manual injury flag: Hamstring strain grade 1."
+  }
+  ```
 
 #### `GET /api/analytics/players`
 * **Purpose**: Retrieve top scorers, assists, minutes, and disciplinary counts.

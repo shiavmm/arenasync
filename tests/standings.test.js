@@ -91,4 +91,32 @@ describe('Requirement 6: Standings & Championship Table Calculation', () => {
     assert.strictEqual(ranked[2].name, 'Horizon United');
     assert.strictEqual(ranked[2].rank, 3);
   });
+
+  it('should maintain independent standings for multiple tournaments without cross-tournament leakage', () => {
+    const tour1Registered = ['t1', 't2', 't3'];
+    const tour2Registered = ['tb1', 'tb2', 'tb3'];
+
+    const allTeams = [
+      ...teams,
+      { id: 'tb1', name: 'Cyber Knights', played: 2, won: 2, draw: 0, lost: 0, goalsFor: 160, goalsAgainst: 140, goalDifference: 20, points: 6, rank: 0 },
+      { id: 'tb2', name: 'Solar Falcons', played: 2, won: 1, draw: 0, lost: 1, goalsFor: 150, goalsAgainst: 155, goalDifference: -5, points: 3, rank: 0 },
+      { id: 'tb3', name: 'Quantum Vipers', played: 2, won: 0, draw: 0, lost: 2, goalsFor: 135, goalsAgainst: 150, goalDifference: -15, points: 0, rank: 0 }
+    ];
+
+    const standings1 = rankStandings(allTeams.filter(t => tour1Registered.includes(t.id)));
+    const standings2 = rankStandings(allTeams.filter(t => tour2Registered.includes(t.id)));
+
+    assert.strictEqual(standings1.length, 3);
+    assert.strictEqual(standings2.length, 3);
+
+    assert.strictEqual(standings1[0].name, 'Titan FC');
+    assert.strictEqual(standings1[0].rank, 1);
+
+    assert.strictEqual(standings2[0].name, 'Cyber Knights');
+    assert.strictEqual(standings2[0].rank, 1);
+
+    // Verify zero cross-tournament pollution
+    standings1.forEach(t => assert.strictEqual(tour2Registered.includes(t.id), false));
+    standings2.forEach(t => assert.strictEqual(tour1Registered.includes(t.id), false));
+  });
 });

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from './db.js';
-import { MatchEventType, DocumentStatus } from '../src/types.js';
+import { MatchEventType, DocumentStatus, User, Role, Team, Player, InjuryRiskFlag, FlagCategory, FlagSeverity, FlagStatus } from '../src/types.js';
 
 export const apiRouter = Router();
 
@@ -39,6 +39,15 @@ export function parseToken(token: string): { userId: string; role: Role } | null
   } catch {
     return null;
   }
+}
+
+export function getOptionalAuthUser(req: Request): User | null {
+  const authHeader = req.headers.authorization || (req.headers['x-auth-token'] as string);
+  if (!authHeader) return null;
+  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+  const parsed = parseToken(token);
+  if (!parsed) return null;
+  return db.users.find(u => u.id === parsed.userId) || null;
 }
 
 // Authentication Middleware: Enforces valid Bearer token
@@ -225,24 +234,33 @@ apiRouter.delete('/tournaments/:id', authenticate, requireRole('ADMIN'), (req: A
 
 // TEAMS
 apiRouter.get('/teams', (req, res) => {
-  res.json(db.teams);
+  const includeInactive = req.query.includeInactive === 'true';
+  const requestingUser = getOptionalAuthUser(req);
+  if (includeInactive && requestingUser?.role === 'ADMIN') {
+    return res.json(db.teams);
+  }
+  const activeTeams = db.teams.filter(t => t.status !== 'INACTIVE');
+  res.json(activeTeams);
 });
 
 apiRouter.post('/teams', authenticate, requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
   const { name, code, coachName, coachEmail, sport, homeVenue, primaryColor } = req.body;
-  if (!name || !code) {
+  if (!name || !code || !name.trim() || !code.trim()) {
     return res.status(400).json({ error: 'Team name and code are required' });
   }
 
-  // Check duplicate
-  if (db.teams.some(t => t.name.toLowerCase() === name.toLowerCase() || t.code.toLowerCase() === code.toLowerCase())) {
+  const trimmedName = name.trim();
+  const trimmedCode = code.trim().toUpperCase();
+
+  // Check duplicate against active teams
+  if (db.teams.some(t => t.status !== 'INACTIVE' && (t.name.toLowerCase() === trimmedName.toLowerCase() || t.code.toUpperCase() === trimmedCode))) {
     return res.status(400).json({ error: 'A team with this name or code already exists' });
   }
 
   const newTeam = {
     id: `team-${Date.now()}`,
-    name,
-    code: code.toUpperCase(),
+    name: trimmedName,
+    code: trimmedCode,
     logoUrl: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=120&auto=format&fit=crop&q=80',
     coachName: coachName || 'TBD',
     coachEmail: coachEmail || 'coach@sports.edu',
@@ -263,7 +281,9 @@ apiRouter.post('/teams', authenticate, requireRole('ADMIN'), (req: Authenticated
   };
 
   db.teams.push(newTeam);
-  db.tournaments[0].registeredTeamIds.push(newTeam.id);
+  if (db.tournaments[0]) {
+    db.tournaments[0].registeredTeamIds.push(newTeam.id);
+  }
 
   db.addAuditLog({
     userId: req.user?.id || 'usr-admin-1',
@@ -278,10 +298,195 @@ apiRouter.post('/teams', authenticate, requireRole('ADMIN'), (req: Authenticated
   res.status(201).json(newTeam);
 });
 
+apiRouter.put('/teams/:id', authenticate, requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
+  const team = db.teams.find(t => t.id === req.params.id);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+
+  const {
+    name,
+    code,
+    coachName,
+    coachEmail,
+    coachId,
+    sport,
+    homeVenue,
+    primaryColor,
+    secondaryColor,
+    logoUrl,
+    matchesPlayed,
+    wins,
+    losses,
+    draws,
+    points,
+    goalsFor,
+    goalsAgainst,
+    goalDifference,
+    status
+  } = req.body;
+
+  // Validate name
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Team name must be a non-empty string' });
+    }
+    if (name.trim().length > 100) {
+      return res.status(400).json({ error: 'Team name cannot exceed 100 characters' });
+    }
+  }
+
+  // Validate code
+  if (code !== undefined) {
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'Team code must be a non-empty string' });
+    }
+    if (code.trim().length < 2 || code.trim().length > 6) {
+      return res.status(400).json({ error: 'Team code must be between 2 and 6 characters' });
+    }
+  }
+
+  // Check unique name and code against active teams
+  const targetName = name !== undefined ? name.trim() : team.name;
+  const targetCode = code !== undefined ? code.trim().toUpperCase() : team.code;
+  const duplicate = db.teams.find(
+    t => t.id !== team.id &&
+         t.status !== 'INACTIVE' &&
+         (t.name.toLowerCase() === targetName.toLowerCase() || t.code.toUpperCase() === targetCode)
+  );
+  if (duplicate) {
+    return res.status(400).json({ error: 'A team with this name or code already exists' });
+  }
+
+  // Validate numeric fields (no negative numbers)
+  const numericNonNegative = [
+    { key: 'matchesPlayed', val: matchesPlayed },
+    { key: 'wins', val: wins },
+    { key: 'losses', val: losses },
+    { key: 'draws', val: draws },
+    { key: 'points', val: points },
+    { key: 'goalsFor', val: goalsFor },
+    { key: 'goalsAgainst', val: goalsAgainst }
+  ];
+
+  for (const field of numericNonNegative) {
+    if (field.val !== undefined) {
+      if (typeof field.val !== 'number' || isNaN(field.val) || field.val < 0) {
+        return res.status(400).json({ error: `Field '${field.key}' must be a non-negative number` });
+      }
+    }
+  }
+
+  if (goalDifference !== undefined && (typeof goalDifference !== 'number' || isNaN(goalDifference))) {
+    return res.status(400).json({ error: "Field 'goalDifference' must be a valid number" });
+  }
+
+  // Validate string fields
+  const stringFields = [
+    { key: 'coachName', val: coachName },
+    { key: 'coachEmail', val: coachEmail },
+    { key: 'coachId', val: coachId },
+    { key: 'sport', val: sport },
+    { key: 'homeVenue', val: homeVenue },
+    { key: 'primaryColor', val: primaryColor },
+    { key: 'secondaryColor', val: secondaryColor },
+    { key: 'logoUrl', val: logoUrl }
+  ];
+
+  for (const field of stringFields) {
+    if (field.val !== undefined && typeof field.val !== 'string') {
+      return res.status(400).json({ error: `Field '${field.key}' must be a string` });
+    }
+  }
+
+  const prevTeamJson = JSON.stringify(team);
+
+  if (name !== undefined) team.name = name.trim();
+  if (code !== undefined) team.code = code.trim().toUpperCase();
+  if (coachName !== undefined) team.coachName = coachName.trim();
+  if (coachEmail !== undefined) team.coachEmail = coachEmail.trim();
+  if (coachId !== undefined) team.coachId = coachId;
+  if (sport !== undefined) team.sport = sport.trim();
+  if (homeVenue !== undefined) team.homeVenue = homeVenue.trim();
+  if (primaryColor !== undefined) team.primaryColor = primaryColor.trim();
+  if (secondaryColor !== undefined) team.secondaryColor = secondaryColor.trim();
+  if (logoUrl !== undefined) team.logoUrl = logoUrl.trim();
+  if (matchesPlayed !== undefined) team.matchesPlayed = Number(matchesPlayed);
+  if (wins !== undefined) team.wins = Number(wins);
+  if (losses !== undefined) team.losses = Number(losses);
+  if (draws !== undefined) team.draws = Number(draws);
+  if (points !== undefined) team.points = Number(points);
+  if (goalsFor !== undefined) team.goalsFor = Number(goalsFor);
+  if (goalsAgainst !== undefined) team.goalsAgainst = Number(goalsAgainst);
+  if (goalDifference !== undefined) team.goalDifference = Number(goalDifference);
+  if (status !== undefined && ['ACTIVE', 'PENDING', 'INACTIVE'].includes(status)) {
+    team.status = status;
+  }
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'Admin / Organizer',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'UPDATE_TEAM',
+    entityType: 'TEAM',
+    entityId: team.id,
+    previousValue: prevTeamJson,
+    newValue: JSON.stringify(team)
+  });
+
+  res.json(team);
+});
+
+apiRouter.delete('/teams/:id', authenticate, requireRole('ADMIN'), (req: AuthenticatedRequest, res) => {
+  const team = db.teams.find(t => t.id === req.params.id);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+
+  // Rule 2: Block deleting a team that has LIVE or COMPLETED matches, or whose tournament is IN_PROGRESS. Return 409 with a clear message.
+  const hasLiveOrCompletedMatches = db.matches.some(
+    m => (m.homeTeamId === team.id || m.awayTeamId === team.id) &&
+         (m.status === 'LIVE' || m.status === 'COMPLETED')
+  );
+  if (hasLiveOrCompletedMatches) {
+    return res.status(409).json({
+      error: `Cannot delete team '${team.name}': The team has LIVE or COMPLETED matches in the tournament schedule.`
+    });
+  }
+
+  const inProgressTour = db.tournaments.find(
+    t => t.registeredTeamIds?.includes(team.id) && t.status === 'IN_PROGRESS'
+  );
+  if (inProgressTour) {
+    return res.status(409).json({
+      error: `Cannot delete team '${team.name}': Tournament '${inProgressTour.name}' is currently IN_PROGRESS.`
+    });
+  }
+
+  const prevValue = JSON.stringify({ status: team.status, deletedAt: team.deletedAt });
+  team.status = 'INACTIVE';
+  team.deletedAt = new Date().toISOString();
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'Admin / Organizer',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'DELETE_TEAM',
+    entityType: 'TEAM',
+    entityId: team.id,
+    previousValue: prevValue,
+    newValue: JSON.stringify({ status: team.status, deletedAt: team.deletedAt })
+  });
+
+  res.json({ success: true, message: `Team '${team.name}' soft-deleted successfully`, team });
+});
+
 // PLAYERS
 apiRouter.get('/players', (req, res) => {
-  const { teamId, eligibility } = req.query;
+  const { teamId, eligibility, includeInactive } = req.query;
+  const requestingUser = getOptionalAuthUser(req);
   let result = db.players;
+
+  if (!(includeInactive === 'true' && requestingUser?.role === 'ADMIN')) {
+    result = result.filter(p => p.status !== 'INACTIVE');
+  }
+
   if (teamId) {
     result = result.filter(p => p.teamId === teamId);
   }
@@ -293,16 +498,26 @@ apiRouter.get('/players', (req, res) => {
 
 apiRouter.post('/players', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
   const { name, teamId, jerseyNumber, position, age, contactEmail, contactPhone } = req.body;
-  if (!name || !teamId) {
+  if (!name || !teamId || !name.trim()) {
     return res.status(400).json({ error: 'Player name and team are required' });
   }
 
   const team = db.teams.find(t => t.id === teamId);
   if (!team) return res.status(404).json({ error: 'Team not found' });
 
-  // Duplicate check
+  // Coach can only add players to their own team
+  if (req.user?.role === 'COACH' && req.user.teamId && req.user.teamId !== teamId) {
+    return res.status(403).json({ error: 'Forbidden: Coaches can only register players on their own team' });
+  }
+
+  const trimmedName = name.trim();
+  const jNum = Number(jerseyNumber) || 12;
+
+  // Duplicate check on active players
   const duplicate = db.players.find(
-    p => p.teamId === teamId && (p.jerseyNumber === Number(jerseyNumber) || p.name.toLowerCase() === name.toLowerCase())
+    p => p.teamId === teamId &&
+         p.status !== 'INACTIVE' &&
+         (p.jerseyNumber === jNum || p.name.toLowerCase() === trimmedName.toLowerCase())
   );
   if (duplicate) {
     return res.status(400).json({ error: 'Player with this name or jersey number already exists on this team' });
@@ -310,11 +525,11 @@ apiRouter.post('/players', authenticate, requireRole('ADMIN', 'COACH'), (req: Au
 
   const newPlayer = {
     id: `ply-${Date.now()}`,
-    name,
+    name: trimmedName,
     playerId: `PLY-${Math.floor(1000 + Math.random() * 9000)}`,
     teamId,
     teamName: team.name,
-    jerseyNumber: Number(jerseyNumber) || 12,
+    jerseyNumber: jNum,
     position: position || 'Midfielder',
     age: Number(age) || 20,
     contactEmail: contactEmail || 'student@university.edu',
@@ -326,13 +541,14 @@ apiRouter.post('/players', authenticate, requireRole('ADMIN', 'COACH'), (req: Au
         id: `doc-${Date.now()}`,
         playerId: `ply-${Date.now()}`,
         documentType: 'COLLEGE_ID' as const,
-        fileName: `${name.toLowerCase().replace(/\s+/g, '_')}_student_id.pdf`,
+        fileName: `${trimmedName.toLowerCase().replace(/\s+/g, '_')}_student_id.pdf`,
         fileSize: '1.1 MB',
         uploadDate: new Date().toISOString().split('T')[0],
         status: 'PENDING' as const,
         notes: 'Awaiting administrative verification'
       }
     ],
+    status: 'ACTIVE' as const,
     matchesPlayed: 0,
     minutesPlayed: 0,
     goals: 0,
@@ -348,8 +564,8 @@ apiRouter.post('/players', authenticate, requireRole('ADMIN', 'COACH'), (req: Au
 
   db.addAlert({
     type: 'ELIGIBILITY_PENDING',
-    title: `Eligibility Verification Required: ${name}`,
-    message: `${name} has been added to ${team.name} and requires document verification before match clearance.`,
+    title: `Eligibility Verification Required: ${trimmedName}`,
+    message: `${trimmedName} has been added to ${team.name} and requires document verification before match clearance.`,
     severity: 'info',
     linkTo: '/documents',
     entityId: newPlayer.id
@@ -366,6 +582,182 @@ apiRouter.post('/players', authenticate, requireRole('ADMIN', 'COACH'), (req: Au
   });
 
   res.status(201).json(newPlayer);
+});
+
+apiRouter.put('/players/:id', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
+  const player = db.players.find(p => p.id === req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+
+  // Rule: COACH only for players of their own team
+  if (req.user?.role === 'COACH') {
+    if (!req.user.teamId || req.user.teamId !== player.teamId) {
+      return res.status(403).json({
+        error: "Forbidden: Coaches can only update players on their own team."
+      });
+    }
+  }
+
+  const {
+    name,
+    teamId,
+    jerseyNumber,
+    position,
+    age,
+    contactEmail,
+    contactPhone,
+    photoUrl,
+    eligibilityStatus,
+    matchesPlayed,
+    minutesPlayed,
+    goals,
+    assists,
+    yellowCards,
+    redCards,
+    fouls,
+    rating,
+    status
+  } = req.body;
+
+  // Validate name
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Player name must be a non-empty string' });
+    }
+    if (name.trim().length > 100) {
+      return res.status(400).json({ error: 'Player name cannot exceed 100 characters' });
+    }
+  }
+
+  // Validate jerseyNumber
+  if (jerseyNumber !== undefined) {
+    if (typeof jerseyNumber !== 'number' || !Number.isInteger(jerseyNumber) || jerseyNumber < 1 || jerseyNumber > 99) {
+      return res.status(400).json({ error: 'Jersey number must be an integer between 1 and 99' });
+    }
+  }
+
+  // Validate age
+  if (age !== undefined) {
+    if (typeof age !== 'number' || !Number.isInteger(age) || age < 10 || age > 100) {
+      return res.status(400).json({ error: 'Age must be a valid number' });
+    }
+  }
+
+  // Validate non-negative numbers for statistics
+  const numericStats = [
+    { key: 'matchesPlayed', val: matchesPlayed },
+    { key: 'minutesPlayed', val: minutesPlayed },
+    { key: 'goals', val: goals },
+    { key: 'assists', val: assists },
+    { key: 'yellowCards', val: yellowCards },
+    { key: 'redCards', val: redCards },
+    { key: 'fouls', val: fouls }
+  ];
+
+  for (const stat of numericStats) {
+    if (stat.val !== undefined) {
+      if (typeof stat.val !== 'number' || isNaN(stat.val) || stat.val < 0) {
+        return res.status(400).json({ error: `Field '${stat.key}' must be a non-negative number` });
+      }
+    }
+  }
+
+  if (rating !== undefined) {
+    if (typeof rating !== 'number' || isNaN(rating) || rating < 0 || rating > 10) {
+      return res.status(400).json({ error: 'Rating must be a number between 0 and 10' });
+    }
+  }
+
+  // Check duplicate on target team
+  const targetTeamId = teamId || player.teamId;
+  const targetJersey = jerseyNumber !== undefined ? Number(jerseyNumber) : player.jerseyNumber;
+  const targetName = name !== undefined ? name.trim() : player.name;
+
+  const duplicate = db.players.find(
+    p => p.teamId === targetTeamId &&
+         p.id !== player.id &&
+         p.status !== 'INACTIVE' &&
+         (p.jerseyNumber === targetJersey || p.name.toLowerCase() === targetName.toLowerCase())
+  );
+  if (duplicate) {
+    return res.status(400).json({ error: 'Player with this name or jersey number already exists on this team' });
+  }
+
+  if (teamId && teamId !== player.teamId) {
+    const newTeam = db.teams.find(t => t.id === teamId);
+    if (!newTeam) return res.status(404).json({ error: 'Target team not found' });
+    player.teamId = newTeam.id;
+    player.teamName = newTeam.name;
+  }
+
+  const prevPlayerJson = JSON.stringify(player);
+
+  if (name !== undefined) player.name = name.trim();
+  if (jerseyNumber !== undefined) player.jerseyNumber = Number(jerseyNumber);
+  if (position !== undefined && typeof position === 'string') player.position = position.trim();
+  if (age !== undefined) player.age = Number(age);
+  if (contactEmail !== undefined && typeof contactEmail === 'string') player.contactEmail = contactEmail.trim();
+  if (contactPhone !== undefined && typeof contactPhone === 'string') player.contactPhone = contactPhone.trim();
+  if (photoUrl !== undefined && typeof photoUrl === 'string') player.photoUrl = photoUrl.trim();
+  if (eligibilityStatus !== undefined && ['VERIFIED', 'PENDING', 'REJECTED'].includes(eligibilityStatus)) {
+    player.eligibilityStatus = eligibilityStatus;
+  }
+  if (matchesPlayed !== undefined) player.matchesPlayed = Number(matchesPlayed);
+  if (minutesPlayed !== undefined) player.minutesPlayed = Number(minutesPlayed);
+  if (goals !== undefined) player.goals = Number(goals);
+  if (assists !== undefined) player.assists = Number(assists);
+  if (yellowCards !== undefined) player.yellowCards = Number(yellowCards);
+  if (redCards !== undefined) player.redCards = Number(redCards);
+  if (fouls !== undefined) player.fouls = Number(fouls);
+  if (rating !== undefined) player.rating = Number(rating);
+  if (status !== undefined && ['ACTIVE', 'PENDING', 'INACTIVE'].includes(status)) {
+    player.status = status;
+  }
+
+  db.recalculateWorkloadsAndRisks();
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'User',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'UPDATE_PLAYER',
+    entityType: 'PLAYER',
+    entityId: player.id,
+    previousValue: prevPlayerJson,
+    newValue: JSON.stringify(player)
+  });
+
+  res.json(player);
+});
+
+apiRouter.delete('/players/:id', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
+  const player = db.players.find(p => p.id === req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+
+  // Rule: COACH only for players of their own team
+  if (req.user?.role === 'COACH') {
+    if (!req.user.teamId || req.user.teamId !== player.teamId) {
+      return res.status(403).json({
+        error: "Forbidden: Coaches can only delete players on their own team."
+      });
+    }
+  }
+
+  const prevValue = JSON.stringify({ status: player.status || 'ACTIVE', deletedAt: player.deletedAt });
+  player.status = 'INACTIVE';
+  player.deletedAt = new Date().toISOString();
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'User',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'DELETE_PLAYER',
+    entityType: 'PLAYER',
+    entityId: player.id,
+    previousValue: prevValue,
+    newValue: JSON.stringify({ status: player.status, deletedAt: player.deletedAt })
+  });
+
+  res.json({ success: true, message: `Player '${player.name}' soft-deleted successfully`, player });
 });
 
 // DOCUMENTS: Upload & Verify
@@ -813,11 +1205,358 @@ apiRouter.get('/workload', (req, res) => {
   });
 });
 
+// CLEARANCE GATE HELPER
+export interface KickoffClearanceResult {
+  cleared: boolean;
+  reason?: string;
+  warning?: string;
+}
+
+export function isPlayerClearedForKickoff(
+  player: Player,
+  injuryFlags: InjuryRiskFlag[] = db.injuryFlags
+): KickoffClearanceResult {
+  if (player.status === 'INACTIVE') {
+    return {
+      cleared: false,
+      reason: `Player ${player.name} is INACTIVE.`
+    };
+  }
+
+  if (player.eligibilityStatus !== 'VERIFIED') {
+    return {
+      cleared: false,
+      reason: `Player ${player.name} document eligibility status is ${player.eligibilityStatus || 'PENDING'}. Verified documents required for match clearance.`
+    };
+  }
+
+  const playerManualActiveFlags = (injuryFlags || []).filter(
+    f => f.playerId === player.id && f.source === 'MANUAL' && f.status === 'ACTIVE'
+  );
+
+  const blockingFlag = playerManualActiveFlags.find(
+    f => f.severity === 'HIGH' || f.category === 'SUSPENSION'
+  );
+
+  if (blockingFlag) {
+    const flagType = blockingFlag.category === 'SUSPENSION' ? 'SUSPENSION' : 'HIGH severity manual injury';
+    return {
+      cleared: false,
+      reason: `Player ${player.name} is blocked at kickoff clearance gate due to active ${flagType} flag${blockingFlag.notes ? `: ${blockingFlag.notes}` : ''}.`
+    };
+  }
+
+  const warningFlag = playerManualActiveFlags.find(
+    f => f.severity === 'MODERATE' || f.severity === 'LOW'
+  );
+
+  if (warningFlag) {
+    return {
+      cleared: true,
+      warning: `Player ${player.name} cleared with warning: active ${warningFlag.severity} severity ${warningFlag.category.toLowerCase()} flag.`
+    };
+  }
+
+  return { cleared: true };
+}
+
+apiRouter.get('/players/:id/clearance', (req, res) => {
+  const player = db.players.find(p => p.id === req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+  const result = isPlayerClearedForKickoff(player, db.injuryFlags);
+  res.json({ playerId: player.id, playerName: player.name, ...result });
+});
+
+// INJURY FLAGS & FATIGUE SENTINEL
+
+// 1. Create a MANUAL injury flag
+apiRouter.post('/players/:id/injury-flags', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
+  const player = db.players.find(p => p.id === req.params.id);
+  if (!player) return res.status(404).json({ error: 'Player not found' });
+
+  // RBAC: Coach can only create flags for players on their own team
+  if (req.user?.role === 'COACH') {
+    if (!req.user.teamId || req.user.teamId !== player.teamId) {
+      return res.status(403).json({
+        error: 'Forbidden: Coaches can only manage injury flags for players on their own team.'
+      });
+    }
+  }
+
+  const { category, severity, notes } = req.body;
+
+  const validCategories: FlagCategory[] = ['INJURY', 'ILLNESS', 'SUSPENSION'];
+  if (!category || !validCategories.includes(category)) {
+    return res.status(400).json({
+      error: `Invalid category '${category}'. Allowed values: ${validCategories.join(', ')}`
+    });
+  }
+
+  const validSeverities: FlagSeverity[] = ['LOW', 'MODERATE', 'HIGH'];
+  if (!severity || !validSeverities.includes(severity)) {
+    return res.status(400).json({
+      error: `Invalid severity '${severity}'. Allowed values: ${validSeverities.join(', ')}`
+    });
+  }
+
+  if (notes !== undefined && notes !== null) {
+    if (typeof notes !== 'string') {
+      return res.status(400).json({ error: 'Notes must be a string' });
+    }
+    if (notes.length > 500) {
+      return res.status(400).json({ error: 'Notes cannot exceed 500 characters' });
+    }
+  }
+
+  const now = new Date().toISOString();
+  const trimmedNotes = notes ? (notes as string).trim() : '';
+
+  const newFlag: InjuryRiskFlag = {
+    id: `flag-man-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    playerId: player.id,
+    playerName: player.name,
+    teamId: player.teamId,
+    teamName: player.teamName,
+    source: 'MANUAL',
+    category,
+    severity,
+    riskLevel: severity,
+    notes: trimmedNotes,
+    status: 'ACTIVE',
+    createdBy: req.user?.name || req.user?.id || 'Admin',
+    createdAt: now,
+    reasons: [trimmedNotes || `Manual ${category.toLowerCase()} flag (${severity.toLowerCase()} severity)`],
+    riskScore: severity === 'HIGH' ? 85 : severity === 'MODERATE' ? 55 : 20,
+    disclaimer: 'Manual technical/medical staff entry.',
+    lastCalculated: now
+  };
+
+  db.injuryFlags.push(newFlag);
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'Admin',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'ADD_INJURY_FLAG',
+    entityType: 'RISK_FLAG',
+    entityId: newFlag.id,
+    newValue: JSON.stringify(newFlag)
+  });
+
+  res.status(201).json(newFlag);
+});
+
+// 2. Edit a MANUAL ACTIVE injury flag
+apiRouter.put('/injury-flags/:id', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
+  const flag = db.injuryFlags.find(f => f.id === req.params.id);
+  if (!flag) return res.status(404).json({ error: 'Injury flag not found' });
+
+  // ACWR_AUTO flags are read-only through the API
+  if (flag.source === 'ACWR_AUTO') {
+    return res.status(403).json({
+      error: 'Forbidden: Automatic ACWR flags cannot be modified manually.'
+    });
+  }
+
+  // RBAC: Coach check
+  if (req.user?.role === 'COACH') {
+    if (!req.user.teamId || req.user.teamId !== flag.teamId) {
+      return res.status(403).json({
+        error: 'Forbidden: Coaches can only edit injury flags for players on their own team.'
+      });
+    }
+  }
+
+  // State check: Only ACTIVE flags can be edited
+  if (flag.status !== 'ACTIVE') {
+    return res.status(409).json({
+      error: `Conflict: Cannot edit an injury flag that is ${flag.status}. Only ACTIVE flags can be modified.`
+    });
+  }
+
+  const { category, severity, notes } = req.body;
+
+  const validCategories: FlagCategory[] = ['INJURY', 'ILLNESS', 'SUSPENSION'];
+  if (category !== undefined && !validCategories.includes(category)) {
+    return res.status(400).json({
+      error: `Invalid category '${category}'. Allowed values: ${validCategories.join(', ')}`
+    });
+  }
+
+  const validSeverities: FlagSeverity[] = ['LOW', 'MODERATE', 'HIGH'];
+  if (severity !== undefined && !validSeverities.includes(severity)) {
+    return res.status(400).json({
+      error: `Invalid severity '${severity}'. Allowed values: ${validSeverities.join(', ')}`
+    });
+  }
+
+  if (notes !== undefined && notes !== null) {
+    if (typeof notes !== 'string') {
+      return res.status(400).json({ error: 'Notes must be a string' });
+    }
+    if (notes.length > 500) {
+      return res.status(400).json({ error: 'Notes cannot exceed 500 characters' });
+    }
+  }
+
+  const prevFlagJson = JSON.stringify(flag);
+  const now = new Date().toISOString();
+
+  if (category) flag.category = category;
+  if (severity) {
+    flag.severity = severity;
+    flag.riskLevel = severity;
+    flag.riskScore = severity === 'HIGH' ? 85 : severity === 'MODERATE' ? 55 : 20;
+  }
+  if (notes !== undefined) {
+    flag.notes = typeof notes === 'string' ? notes.trim() : '';
+    flag.reasons = [flag.notes || `Manual ${flag.category.toLowerCase()} flag (${flag.severity.toLowerCase()} severity)`];
+  }
+
+  flag.updatedBy = req.user?.name || req.user?.id || 'Admin';
+  flag.updatedAt = now;
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'Admin',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'UPDATE_INJURY_FLAG',
+    entityType: 'RISK_FLAG',
+    entityId: flag.id,
+    previousValue: prevFlagJson,
+    newValue: JSON.stringify(flag)
+  });
+
+  res.json(flag);
+});
+
+// 3. Resolve a MANUAL injury flag
+apiRouter.put('/injury-flags/:id/resolve', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
+  const flag = db.injuryFlags.find(f => f.id === req.params.id);
+  if (!flag) return res.status(404).json({ error: 'Injury flag not found' });
+
+  // ACWR_AUTO flags are read-only
+  if (flag.source === 'ACWR_AUTO') {
+    return res.status(403).json({
+      error: 'Forbidden: Automatic ACWR flags cannot be resolved through the manual API.'
+    });
+  }
+
+  // RBAC: Coach check
+  if (req.user?.role === 'COACH') {
+    if (!req.user.teamId || req.user.teamId !== flag.teamId) {
+      return res.status(403).json({
+        error: 'Forbidden: Coaches can only resolve injury flags for players on their own team.'
+      });
+    }
+  }
+
+  if (flag.status === 'RESOLVED' || flag.status === 'VOIDED') {
+    return res.status(409).json({
+      error: `Conflict: Injury flag is already ${flag.status}.`
+    });
+  }
+
+  const prevFlagJson = JSON.stringify(flag);
+  const now = new Date().toISOString();
+
+  flag.status = 'RESOLVED';
+  flag.resolvedBy = req.user?.name || req.user?.id || 'Admin';
+  flag.resolvedAt = now;
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'Admin',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'RESOLVE_INJURY_FLAG',
+    entityType: 'RISK_FLAG',
+    entityId: flag.id,
+    previousValue: prevFlagJson,
+    newValue: JSON.stringify(flag)
+  });
+
+  res.json(flag);
+});
+
+// 4. Soft-delete (VOID) a MANUAL injury flag
+apiRouter.delete('/injury-flags/:id', authenticate, requireRole('ADMIN', 'COACH'), (req: AuthenticatedRequest, res) => {
+  const flag = db.injuryFlags.find(f => f.id === req.params.id);
+  if (!flag) return res.status(404).json({ error: 'Injury flag not found' });
+
+  // ACWR_AUTO flags are read-only
+  if (flag.source === 'ACWR_AUTO') {
+    return res.status(403).json({
+      error: 'Forbidden: Automatic ACWR flags cannot be voided or deleted.'
+    });
+  }
+
+  // RBAC: ADMIN or the COACH who created it (or coach of the team)
+  if (req.user?.role === 'COACH') {
+    const isCreator = flag.createdBy === req.user.name || flag.createdBy === req.user.id;
+    const isTeamCoach = req.user.teamId && req.user.teamId === flag.teamId;
+    if (!isCreator && !isTeamCoach) {
+      return res.status(403).json({
+        error: 'Forbidden: Coaches can only void injury flags created for their team.'
+      });
+    }
+  }
+
+  if (flag.status === 'VOIDED') {
+    return res.status(409).json({
+      error: 'Conflict: Injury flag is already voided.'
+    });
+  }
+
+  const { voidReason } = req.body;
+  if (!voidReason || typeof voidReason !== 'string' || !voidReason.trim()) {
+    return res.status(400).json({
+      error: 'voidReason is required to void an injury flag.'
+    });
+  }
+
+  const prevFlagJson = JSON.stringify(flag);
+  const now = new Date().toISOString();
+
+  flag.status = 'VOIDED';
+  flag.voidedBy = req.user?.name || req.user?.id || 'Admin';
+  flag.voidedAt = now;
+  flag.voidReason = voidReason.trim();
+
+  db.addAuditLog({
+    userId: req.user?.id || 'usr-admin-1',
+    userName: req.user?.name || 'Admin',
+    userRole: req.user?.role || 'ADMIN',
+    action: 'VOID_INJURY_FLAG',
+    entityType: 'RISK_FLAG',
+    entityId: flag.id,
+    previousValue: prevFlagJson,
+    newValue: JSON.stringify(flag)
+  });
+
+  res.json(flag);
+});
+
+// 5. Query injury flags with source, status, and player filtering
 apiRouter.get('/injury-flags', (req, res) => {
-  const flags = db.players.map(p => p.injuryRisk).filter(Boolean);
-  const highRisk = flags.filter(f => f?.riskLevel === 'HIGH');
-  const moderateRisk = flags.filter(f => f?.riskLevel === 'MODERATE');
-  const lowRisk = flags.filter(f => f?.riskLevel === 'LOW');
+  const { status, playerId } = req.query;
+  let flags = [...db.injuryFlags];
+
+  if (playerId && typeof playerId === 'string') {
+    flags = flags.filter(f => f.playerId === playerId);
+  }
+
+  if (status && typeof status === 'string') {
+    if (status.toUpperCase() !== 'ALL') {
+      flags = flags.filter(f => f.status === status.toUpperCase());
+    }
+  } else {
+    // Default to ACTIVE only
+    flags = flags.filter(f => f.status === 'ACTIVE');
+  }
+
+  const highRisk = flags.filter(f => (f.severity === 'HIGH' || f.riskLevel === 'HIGH'));
+  const moderateRisk = flags.filter(f => (f.severity === 'MODERATE' || f.riskLevel === 'MODERATE'));
+  const lowRisk = flags.filter(f => (f.severity === 'LOW' || f.riskLevel === 'LOW'));
 
   res.json({
     flags,
@@ -827,7 +1566,7 @@ apiRouter.get('/injury-flags', (req, res) => {
       lowCount: lowRisk.length,
       totalTracked: flags.length
     },
-    clinicalDisclaimer: 'All flags and risk tiers are statistical workload & fatigue models, NOT medical diagnoses.'
+    clinicalDisclaimer: 'All flags and risk tiers are statistical workload & fatigue models or manual staff logs, NOT medical diagnoses.'
   });
 });
 

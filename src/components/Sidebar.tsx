@@ -14,7 +14,6 @@ import {
   AlertOctagon,
   Bell,
   FileText,
-  Terminal,
   ShieldAlert
 } from 'lucide-react';
 import { Role } from '../types.js';
@@ -77,8 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: unreadAlertsCount > 0 ? `${unreadAlertsCount}` : undefined,
       badgeColor: 'bg-rose-500 text-white'
     },
-    { id: 'audit-logs', label: 'Audit Logs', icon: FileText, category: 'GOVERNANCE', adminOnly: true },
-    { id: 'capstone-specs', label: 'BIT-57 Capstone / API', icon: Terminal, category: 'GOVERNANCE' }
+    { id: 'audit-logs', label: 'Audit Logs', icon: FileText, category: 'GOVERNANCE', adminOnly: true }
   ];
 
   const categories = ['CORE', 'OPERATIONS', 'MATCHES', 'METRICS', 'INTELLIGENCE', 'GOVERNANCE'];
@@ -136,15 +134,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Capstone BIT-57 System Badge */}
+      {/* System Footer Badge */}
       <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
         <div className="rounded-xl p-2.5 bg-slate-800/60 border border-slate-700/60 text-xs">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-200 text-[11px]">B.Sc. IT Capstone</span>
-            <span className="text-[10px] text-cyan-400 font-mono font-bold">BIT-57</span>
+            <span className="font-semibold text-slate-200 text-[11px]">ArenaSync Platform</span>
+            <span className="text-[10px] text-cyan-400 font-mono font-bold">PRO</span>
           </div>
           <p className="text-[10px] text-slate-400 mt-1 leading-snug">
-            ArenaSync Sports Management Engine
+            Sports Operations & Analytics Engine
           </p>
         </div>
       </div>

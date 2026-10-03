@@ -100,8 +100,9 @@ export const sportsApi = {
   },
 
   // Teams
-  async getTeams(): Promise<Team[]> {
-    const res = await this.authFetch(`${API_BASE}/teams`);
+  async getTeams(includeInactive: boolean = false): Promise<Team[]> {
+    const query = includeInactive ? '?includeInactive=true' : '';
+    const res = await this.authFetch(`${API_BASE}/teams${query}`);
     return res.json();
   },
 
@@ -117,8 +118,31 @@ export const sportsApi = {
     return res.json();
   },
 
+  async updateTeam(id: string, data: Partial<Team>): Promise<Team> {
+    const res = await this.authFetch(`${API_BASE}/teams/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update team');
+    }
+    return res.json();
+  },
+
+  async deleteTeam(id: string): Promise<{ success: boolean; message: string; team: Team }> {
+    const res = await this.authFetch(`${API_BASE}/teams/${id}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete team');
+    }
+    return res.json();
+  },
+
   // Players
-  async getPlayers(params?: { teamId?: string; eligibility?: string }): Promise<Player[]> {
+  async getPlayers(params?: { teamId?: string; eligibility?: string; includeInactive?: boolean }): Promise<Player[]> {
     const query = new URLSearchParams(params as any).toString();
     const res = await this.authFetch(`${API_BASE}/players${query ? `?${query}` : ''}`);
     return res.json();
@@ -132,6 +156,29 @@ export const sportsApi = {
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to add player');
+    }
+    return res.json();
+  },
+
+  async updatePlayer(id: string, data: Partial<Player>): Promise<Player> {
+    const res = await this.authFetch(`${API_BASE}/players/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update player');
+    }
+    return res.json();
+  },
+
+  async deletePlayer(id: string): Promise<{ success: boolean; message: string; player: Player }> {
+    const res = await this.authFetch(`${API_BASE}/players/${id}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete player');
     }
     return res.json();
   },
@@ -264,10 +311,66 @@ export const sportsApi = {
     return Array.isArray(data) ? data : (data?.workloads || []);
   },
 
-  async getInjuryFlags(): Promise<any[]> {
-    const res = await this.authFetch(`${API_BASE}/injury-flags`);
+  async getInjuryFlags(params?: { status?: string; playerId?: string }): Promise<InjuryRiskFlag[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.playerId) query.set('playerId', params.playerId);
+    const qs = query.toString();
+    const res = await this.authFetch(`${API_BASE}/injury-flags${qs ? `?${qs}` : ''}`);
     const data = await res.json();
     return Array.isArray(data) ? data : (data?.flags || []);
+  },
+
+  async createInjuryFlag(playerId: string, data: { category: string; severity: string; notes?: string }): Promise<InjuryRiskFlag> {
+    const res = await this.authFetch(`${API_BASE}/players/${playerId}/injury-flags`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to create injury flag');
+    }
+    return res.json();
+  },
+
+  async updateInjuryFlag(flagId: string, data: { category?: string; severity?: string; notes?: string }): Promise<InjuryRiskFlag> {
+    const res = await this.authFetch(`${API_BASE}/injury-flags/${flagId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update injury flag');
+    }
+    return res.json();
+  },
+
+  async resolveInjuryFlag(flagId: string): Promise<InjuryRiskFlag> {
+    const res = await this.authFetch(`${API_BASE}/injury-flags/${flagId}/resolve`, {
+      method: 'PUT'
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to resolve injury flag');
+    }
+    return res.json();
+  },
+
+  async voidInjuryFlag(flagId: string, voidReason: string): Promise<InjuryRiskFlag> {
+    const res = await this.authFetch(`${API_BASE}/injury-flags/${flagId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ voidReason })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to void injury flag');
+    }
+    return res.json();
+  },
+
+  async getPlayerClearance(playerId: string): Promise<{ cleared: boolean; reason?: string; warning?: string }> {
+    const res = await this.authFetch(`${API_BASE}/players/${playerId}/clearance`);
+    return res.json();
   },
 
   // Alerts

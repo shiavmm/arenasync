@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   Tournament,
   Team,
@@ -22,6 +24,7 @@ class SportsDatabase {
   teams: Team[] = [];
   players: Player[] = [];
   matches: Match[] = [];
+  injuryFlags: InjuryRiskFlag[] = [];
   alerts: SystemAlert[] = [];
   auditLogs: AuditLogEntry[] = [];
   metrics: SystemMetrics = {
@@ -42,6 +45,31 @@ class SportsDatabase {
   }
 
   seedInitialData() {
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'data/seed-v1.json'),
+      path.resolve(process.cwd(), '../data/seed-v1.json'),
+      typeof __dirname !== 'undefined' ? path.resolve(__dirname, '../data/seed-v1.json') : '',
+      typeof __dirname !== 'undefined' ? path.resolve(__dirname, '../../data/seed-v1.json') : ''
+    ].filter(Boolean);
+
+    const seedPath = candidatePaths.find(p => fs.existsSync(p));
+    if (seedPath) {
+      try {
+        const raw = fs.readFileSync(seedPath, 'utf8');
+        const data = JSON.parse(raw);
+        this.users = data.users || [];
+        this.tournaments = data.tournaments || [];
+        this.teams = data.teams || [];
+        this.players = data.players || [];
+        this.matches = data.matches || [];
+        this.alerts = data.alerts || [];
+        this.auditLogs = data.auditLogs || [];
+        this.recalculateWorkloadsAndRisks();
+        return;
+      } catch (err) {
+        console.error('Failed to load seed-v1.json, falling back to inline default:', err);
+      }
+    }
     // 1. Users
     this.users = [
       {
@@ -1274,6 +1302,9 @@ class SportsDatabase {
 
   // Workload and Acute:Chronic Workload Ratio (ACWR) Calculation Engine
   recalculateWorkloadsAndRisks() {
+    const manualFlags = (this.injuryFlags || []).filter(f => f.source === 'MANUAL');
+    const autoFlags: InjuryRiskFlag[] = [];
+
     this.players.forEach(player => {
       // Calculate minutes based on participations and completed matches
       let totalMinutes = player.minutesPlayed || 0;
@@ -1298,17 +1329,26 @@ class SportsDatabase {
         matches48h = 2;
         minutes48h = 165;
         minutes7d = 350;
+      } else if (player.id === 'ply-b-1-1') {
+        // Aiden Sterling (Basketball starter) - High workload case
+        matches48h = 3;
+        minutes48h = 118;
+        minutes7d = 120;
+      } else if (totalMinutes === 0) {
+        matches48h = 0;
+        minutes48h = 0;
+        minutes7d = 0;
       } else {
         matches48h = 1;
-        minutes48h = 90;
-        minutes7d = totalMinutes > 0 ? totalMinutes : 90;
+        minutes48h = Math.min(totalMinutes, 90);
+        minutes7d = totalMinutes;
       }
 
       const acuteLoadMinutes = minutes7d;
-      // Chronic load is 28 days normalized weekly average load (e.g. baseline 200 min/week)
-      const chronicLoadMinutes = 195;
-      const acwr = Number((acuteLoadMinutes / chronicLoadMinutes).toFixed(2));
-      const recoveryGapHours = player.id === 'ply-1' ? 14 : player.id === 'ply-2' ? 26 : 52;
+      // Chronic load is 28 days normalized weekly average load (e.g. baseline 195 min/week for football, 100 min/week for basketball)
+      const chronicLoadMinutes = player.teamId.startsWith('team-b') ? 100 : 195;
+      const acwr = Number((acuteLoadMinutes / (chronicLoadMinutes || 1)).toFixed(2));
+      const recoveryGapHours = player.id === 'ply-1' ? 14 : player.id === 'ply-2' ? 26 : player.id === 'ply-b-1-1' ? 18 : 52;
 
       // Workload score (0 - 100)
       let workloadScore = Math.min(100, Math.round((acuteLoadMinutes / 400) * 60 + (matches48h * 15)));
@@ -1404,19 +1444,32 @@ class SportsDatabase {
         riskScore = 20;
       }
 
-      player.injuryRisk = {
+      const autoFlag: InjuryRiskFlag = {
+        id: `flag-auto-${player.id}`,
         playerId: player.id,
         playerName: player.name,
         teamId: player.teamId,
         teamName: player.teamName,
+        source: 'ACWR_AUTO',
+        category: 'INJURY',
+        severity: riskLevel,
         riskLevel,
-        riskScore,
+        notes: `Automated ACWR workload assessment (${riskLevel} risk).`,
+        status: 'ACTIVE',
+        createdBy: 'SYSTEM_ACWR_ENGINE',
+        createdAt: player.injuryRisk?.createdAt || new Date().toISOString(),
         reasons: reasons.length > 0 ? reasons : ['Workload metrics within standard physiological recovery tolerances.'],
         triggers,
+        riskScore,
         disclaimer: 'Workload-based statistical indicator; not a clinical medical diagnosis.',
         lastCalculated: new Date().toISOString()
       };
+
+      player.injuryRisk = autoFlag;
+      autoFlags.push(autoFlag);
     });
+
+    this.injuryFlags = [...autoFlags, ...manualFlags];
   }
 
   // Standings calculation
@@ -1705,8 +1758,8 @@ class SportsDatabase {
       }
     }
 
-    // Replace or append
-    this.matches = newMatches;
+    // Replace tournament's matches or append
+    this.matches = [...this.matches.filter(m => m.tournamentId !== tournamentId), ...newMatches];
     tournament.status = 'IN_PROGRESS';
 
     this.addAuditLog({

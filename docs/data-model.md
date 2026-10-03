@@ -111,13 +111,30 @@ erDiagram
   * `teamId`: Associated franchise for coaches/players (`string`, optional)
   * `assignedMatchIds`: Match IDs assigned to referee (`string[]`, optional)
 
-### 2.7. Audit Log Entry (`AuditLogEntry`)
+### 2.7. Injury Risk Flag (`InjuryRiskFlag`)
+* **Primary Key**: `id` (`string`, e.g., `flag-auto-ply-1`, `flag-man-1789994580-x9a`)
+* **Attributes**:
+  * `playerId`: Associated athlete ID (`string`)
+  * `playerName` / `teamId` / `teamName`: Athlete descriptors (`string`)
+  * `source`: Provenance of flag (`ACWR_AUTO` | `MANUAL`)
+  * `category`: Classification category (`INJURY` | `ILLNESS` | `SUSPENSION`)
+  * `severity`: Clinical / operational severity (`LOW` | `MODERATE` | `HIGH`)
+  * `riskLevel`: Risk tier indicator (`LOW` | `MODERATE` | `HIGH`, backward compatible)
+  * `notes`: Technical staff or system assessment notes (max 500 characters, `string`)
+  * `status`: Operational lifecycle status (`ACTIVE` | `RESOLVED` | `VOIDED`)
+  * `createdBy` / `createdAt`: Originator username/ID and ISO 8601 creation timestamp (`string`)
+  * `updatedBy` / `updatedAt`: Last modifying user and timestamp (`string`, optional)
+  * `resolvedBy` / `resolvedAt`: Resolving practitioner/coach and timestamp (`string`, optional)
+  * `voidedBy` / `voidedAt` / `voidReason`: Soft-delete audit actor, timestamp, and required reason (`string`, optional)
+  * `reasons` / `riskScore` / `triggers` / `disclaimer` / `lastCalculated`: Mathematical workload descriptors (for ACWR auto models)
+
+### 2.8. Audit Log Entry (`AuditLogEntry`)
 * **Primary Key**: `id` (`string`, e.g., `log-1789994580-x9a`)
 * **Attributes**:
   * `timestamp`: ISO 8601 creation timestamp (`string`)
   * `userId` / `userName` / `userRole`: Originating actor identity
-  * `action`: Action classification (`string`, e.g., `SCORE_CHANGE`, `VERIFY_DOCUMENT`, `USER_LOGIN`)
-  * `entityType`: Target entity category (`TOURNAMENT` | `TEAM` | `PLAYER` | `DOCUMENT` | `FIXTURE` | `MATCH` | `SCORE` | `AUTH`)
+  * `action`: Action classification (`string`, e.g., `SCORE_CHANGE`, `VERIFY_DOCUMENT`, `USER_LOGIN`, `ADD_INJURY_FLAG`, `UPDATE_INJURY_FLAG`, `RESOLVE_INJURY_FLAG`, `VOID_INJURY_FLAG`)
+  * `entityType`: Target entity category (`TOURNAMENT` | `TEAM` | `PLAYER` | `DOCUMENT` | `FIXTURE` | `MATCH` | `SCORE` | `AUTH` | `RISK_FLAG`)
   * `entityId`: Unique identifier of modified entity (`string`)
   * `previousValue` / `newValue`: Before/after delta tracking (`string`, optional)
   * `notes`: Additional administrative context (`string`, optional)
@@ -150,4 +167,16 @@ stateDiagram-v2
     PENDING --> REJECTED : Admin Rejects Any Doc (PUT /verify)
     REJECTED --> PENDING : Player Re-uploads Document
     VERIFIED --> [*] : Cleared for Match Day Kickoff
+```
+
+### 3.3. Manual Injury / Suspension Flag Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE : Coach/Admin Creates (POST /players/:id/injury-flags)
+    ACTIVE --> ACTIVE : Coach/Admin Edits (PUT /injury-flags/:id)
+    ACTIVE --> RESOLVED : Coach/Admin Resolves (PUT /injury-flags/:id/resolve)
+    ACTIVE --> VOIDED : Coach/Admin Soft-Deletes with reason (DELETE /injury-flags/:id)
+    RESOLVED --> [*] : Retained for Medical History (Kickoff Gate Cleared)
+    VOIDED --> [*] : Soft-Deleted & Audited (Kickoff Gate Cleared)
 ```

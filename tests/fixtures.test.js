@@ -120,4 +120,32 @@ describe('Requirement 3: Fixture Generation & Knockout Bracket Progression', () 
     assert.strictEqual(sf2.nextMatchId, 'match-final-1');
     assert.strictEqual(sf2.nextMatchSlot, 'away');
   });
+
+  it('should verify both tour-1 (Football) and tour-2 (Basketball) generate independent 7-match brackets', () => {
+    const footballTeams = teams;
+    const basketballTeams = [
+      { id: 'team-b1', name: 'Cyber Knights' },
+      { id: 'team-b2', name: 'Solar Falcons' },
+      { id: 'team-b3', name: 'Quantum Vipers' },
+      { id: 'team-b4', name: 'Ironclad Titans' },
+      { id: 'team-b5', name: 'Nebula Wolves' },
+      { id: 'team-b6', name: 'Zenith Storm' },
+      { id: 'team-b7', name: 'Apex Ballers' },
+      { id: 'team-b8', name: 'Crimson Hawks' }
+    ];
+
+    const fbBracket = generateSingleEliminationBracket(footballTeams, 'tour-1', 'Stadium', '2026-09-20');
+    const bbBracket = generateSingleEliminationBracket(basketballTeams, 'tour-2', 'Arena', '2026-10-01');
+
+    assert.strictEqual(fbBracket.length, 7);
+    assert.strictEqual(bbBracket.length, 7);
+
+    assert.strictEqual(fbBracket.filter(m => m.roundIndex === 1).length, 4);
+    assert.strictEqual(fbBracket.filter(m => m.roundIndex === 2).length, 2);
+    assert.strictEqual(fbBracket.filter(m => m.roundIndex === 3).length, 1);
+
+    assert.strictEqual(bbBracket.filter(m => m.roundIndex === 1).length, 4);
+    assert.strictEqual(bbBracket.filter(m => m.roundIndex === 2).length, 2);
+    assert.strictEqual(bbBracket.filter(m => m.roundIndex === 3).length, 1);
+  });
 });

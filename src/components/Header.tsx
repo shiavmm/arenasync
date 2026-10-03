@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-6 py-3">
+    <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 lg:px-6 py-3">
       <div className="flex items-center justify-between gap-4">
         {/* Project Branding */}
         <div className="flex items-center gap-3">
@@ -61,9 +61,6 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-bold tracking-tight text-white font-['Chakra_Petch'] text-lg">
                 ARENA<span className="text-cyan-400">SYNC</span>
-              </span>
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded font-mono">
-                BIT-57
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">
@@ -122,15 +119,27 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
+            {/* Click outside backdrop */}
+            {showAlertMenu && (
+              <div
+                className="fixed inset-0 z-[65]"
+                onClick={() => setShowAlertMenu(false)}
+              />
+            )}
+
             {/* Alerts Dropdown Drawer */}
             {showAlertMenu && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl p-3 z-50">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-3.5 z-[70]">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-700/80 mb-2.5">
                   <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-cyan-400" />
-                    <span className="text-xs font-semibold text-white uppercase tracking-wider">System Alerts</span>
+                    <div className="h-6 w-6 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                      <Activity className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider font-['Chakra_Petch']">System Alerts</span>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-mono">{unreadAlerts.length} unread</span>
+                  <span className="text-[10px] text-cyan-400 font-mono font-bold bg-cyan-950/40 border border-cyan-700/40 px-2 py-0.5 rounded-full">
+                    {unreadAlerts.length} unread
+                  </span>
                 </div>
 
                 <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
@@ -214,9 +223,17 @@ export const Header: React.FC<HeaderProps> = ({
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-1" />
             </button>
 
-            {/* Role Switcher Menu for Capstone Demonstration */}
+            {/* Click outside backdrop for role menu */}
             {showRoleMenu && (
-              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl p-2 z-50">
+              <div
+                className="fixed inset-0 z-[65]"
+                onClick={() => setShowRoleMenu(false)}
+              />
+            )}
+
+            {/* Role Switcher Menu */}
+            {showRoleMenu && (
+              <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-[70]">
                 <div className="px-3 py-2 border-b border-slate-800 mb-1">
                   <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">
                     Capstone Evaluator Role Switcher

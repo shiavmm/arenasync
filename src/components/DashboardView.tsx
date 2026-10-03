@@ -65,12 +65,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/60 p-6 shadow-xl">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono">
-                Project Code: BIT-57
-              </span>
-              <span className="text-xs text-slate-400 font-medium">B.Sc. IT Capstone Platform</span>
-            </div>
             <h1 className="text-2xl lg:text-3xl font-bold text-white tracking-tight font-['Chakra_Petch']">
               ArenaSync Operations & Workload Platform
             </h1>
@@ -417,9 +411,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-3">
-              {highRiskPlayers.map(flag => (
+              {highRiskPlayers.map((flag, idx) => (
                 <div
-                  key={flag.playerId}
+                  key={flag.id || `${flag.playerId}-high-${idx}`}
                   className="p-3 rounded-xl bg-rose-950/30 border border-rose-800/40 text-xs text-rose-200"
                 >
                   <div className="flex items-center justify-between font-bold">
@@ -436,9 +430,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               ))}
 
-              {moderateRiskPlayers.slice(0, 1).map(flag => (
+              {moderateRiskPlayers.slice(0, 1).map((flag, idx) => (
                 <div
-                  key={flag.playerId}
+                  key={flag.id || `${flag.playerId}-mod-${idx}`}
                   className="p-3 rounded-xl bg-amber-950/30 border border-amber-800/40 text-xs text-amber-200"
                 >
                   <div className="flex items-center justify-between font-bold">

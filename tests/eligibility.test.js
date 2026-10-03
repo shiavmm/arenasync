@@ -81,4 +81,24 @@ describe('Requirement 2: Athlete Eligibility & Document Verification', () => {
     assert.strictEqual(matchClearedPlayers.length, 2);
     assert.deepStrictEqual(matchClearedPlayers.map(p => p.id), ['p1', 'p4']);
   });
+
+  it('should evaluate mixed eligibility statuses across 10-player team rosters', () => {
+    // Simulate 10 players on a basketball team with mixed document statuses
+    const teamPlayers = Array.from({ length: 10 }, (_, i) => {
+      const pNum = i + 1;
+      let status = 'VERIFIED';
+      if (pNum === 9) status = 'PENDING';
+      if (pNum === 10) status = 'REJECTED';
+      return { id: `ply-b-1-${pNum}`, name: `Player ${pNum}`, eligibilityStatus: status };
+    });
+
+    assert.strictEqual(teamPlayers.length, 10);
+    const verified = teamPlayers.filter(p => p.eligibilityStatus === 'VERIFIED');
+    const pending = teamPlayers.filter(p => p.eligibilityStatus === 'PENDING');
+    const rejected = teamPlayers.filter(p => p.eligibilityStatus === 'REJECTED');
+
+    assert.strictEqual(verified.length, 8);
+    assert.strictEqual(pending.length, 1);
+    assert.strictEqual(rejected.length, 1);
+  });
 });
